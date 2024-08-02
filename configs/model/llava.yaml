@@ -1,0 +1,6 @@
+name: llava
+config_name: llava-hf/llava-1.5-13b-hf
+weights_path: /home/projects/shimon/agroskin/models/lxt_llava/13b.model
+processor_path: "${model.config_name}"
+dtype: bfloat16
+attn_impl: eager

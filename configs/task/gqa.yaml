@@ -1,0 +1,10 @@
+name: GQA
+display_name: "${task.name}"
+img_dir: /home/projects/bagon/shared/gqa/images
+train_question_file: /home/projects/shimon/agroskin/datasets/gqa_processed/train_all_questions.json
+val_question_file: /home/projects/shimon/agroskin/datasets/gqa_processed/val_all_questions.json
+test_question_file: /home/projects/shimon/agroskin/datasets/gqa_processed/testdev_all_questions.json
+eval_method: gen
+train_size: null
+val_size: null
+test_size: null

@@ -1,0 +1,2 @@
+text: "USER: <image>\n <Q> Answer using a single word.\nASSISTANT: "
+#text: "USER: <image>\nAnswer the question using a single word or phrase: <Q>\nASSISTANT: "

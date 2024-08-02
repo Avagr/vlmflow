@@ -1,0 +1,6 @@
+name: "SEED-Bench-2"
+task_num: 1
+json_path: /home/projects/shimon/Collaboration/seedbench/SEED-Bench_v2_level1_2_3.json
+image_root: /home/projects/shimon/Collaboration/seedbench/SEED-Bench-2-image
+eval_method: abcd
+display_name: "${task.name}_Part_${task.task_num}"

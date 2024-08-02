@@ -1,0 +1,5 @@
+name: MMVP
+csv_path: /home/projects/shimon/agroskin/datasets/MMVP/Questions.csv
+img_dir: /home/projects/shimon/agroskin/datasets/MMVP/images
+eval_method: abcd
+display_name: "${task.name}"
