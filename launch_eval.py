@@ -3,7 +3,7 @@ from pathlib import Path
 
 import hydra
 import wandb
-from graph_tool import Graph  # This import is very important, as graph_tools should be imported before torch
+import torch
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
@@ -15,7 +15,6 @@ from utils.setup import create_model, create_eval_task, create_callbacks
 
 @hydra.main(config_path="configs", config_name="eval_config", version_base=None)
 def run(cfg: DictConfig):
-    import torch # Importing torch here as it has to be imported last due to a buggy interaction with graph_tools
 
     torch.autograd.set_detect_anomaly(cfg.detect_anomalies, check_nan=True)
     torch.backends.cuda.matmul.allow_tf32 = cfg.use_tf32
@@ -23,7 +22,10 @@ def run(cfg: DictConfig):
 
     set_random_seed(cfg.seed)
 
-    device = cfg.device  # TODO support accelerate
+    device = cfg.device
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+
 
     if cfg.disable_wandb:
         os.environ["WANDB_MODE"] = "disabled"
@@ -59,17 +61,17 @@ def run(cfg: DictConfig):
     loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=cfg.num_workers,
                         pin_memory=cfg.pin_memory, collate_fn=collate_fn)
 
-    callbacks = create_callbacks(cfg, wrapper, run_folder)
+    callbacks = create_callbacks(cfg, wrapper, run_folder, model)
 
     with torch.inference_mode(mode=not cfg.need_grad):
         accuracy, results = eval_model(model, wrapper, loader, cfg.show_tqdm)
 
     merged_results = merge_results(results, callbacks)
 
-    save_file = run_folder / f"results_table.pkl"
+    save_file = run_folder / f"results_table.parquet"
     df = merged_results.to_table(dataset).get_dataframe()
     df.attrs["run_id"] = run_id
-    df.to_pickle(save_file)
+    df.to_parquet(save_file)
     if cfg.disable_wandb:
         print({"accuracy": accuracy, })
     else:
@@ -79,5 +81,3 @@ def run(cfg: DictConfig):
 
 if __name__ == '__main__':
     run()
-
-_: Graph

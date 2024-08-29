@@ -1,6 +1,6 @@
 defaults:
     - _self_
-    - task: whatsup
+    - task: coco
     - model: llava
     - sampling_params: short
 
@@ -22,7 +22,7 @@ need_grad: false
 mixed_precision: false
 use_tf32: false
 
-disable_wandb: false
+disable_wandb: true
 show_tqdm: true
 resume_wandb_id: null
 detect_anomalies: false
@@ -32,6 +32,9 @@ results_path: /home/projects/shimon/agroskin/projects/vlmflow/results
 model_size: ???
 
 save_full_graphs: true
+head_batch_size: 4
 renormalization_threshold: null
 sparsification_threshold: null
 
+last_token_logit_lens: false
+normalize_lens: true

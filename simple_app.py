@@ -7,7 +7,7 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from transformers import LlavaForConditionalGeneration, AutoProcessor
 
-from flow.graph import build_full_graph, apply_graph_threshold
+from flow.contributions import build_full_graph, apply_graph_threshold
 from models.transparent_models import TransparentLlava
 from ui import contribution_graph
 from utils.misc import plot_image_with_heatmap
@@ -41,7 +41,7 @@ def load_model(model_name, _device="cuda", _dtype=torch.bfloat16):
 
 
 @st.cache_resource
-def build_graph(_model: TransparentLlava, prompt, img_path, threshold):  # TODO: MODEL NOT CACHED
+def build_graph(_model: TransparentLlava, prompt, img_path, threshold):  # WARNING: MODEL NOT CACHED
     image = Image.open(img_path)
     with st.sidebar.expander("Uploaded image", expanded=True):
         st.image(image)

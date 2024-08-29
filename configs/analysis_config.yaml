@@ -1,0 +1,19 @@
+defaults:
+    - _self_
+    - model: llava
+
+wandb_project: vlmflow
+wandb_entity: avagr
+seed: 57
+
+disable_wandb: false
+disable_tqdm: false
+resume_wandb_id: null
+
+results_dir: /home/projects/shimon/agroskin/projects/vlmflow/results
+run_dir: SEED-Bench-2_Part_2/llava_tensors_2024_08_04-03_56_52
+
+graph_threshold: 0.02
+graph_for_last_token: true
+
+

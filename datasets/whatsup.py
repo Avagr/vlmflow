@@ -37,17 +37,14 @@ class WhatsUp(BaseDataset):
         return idx, image, options, answer
 
     def table_repr(self, idx, prediction, img_as_object=True):
-        answer = 0
-        if self.permute_options:
-            permutation = self.permutations[idx]
-            prediction = permutation[prediction].item()
-            answer = permutation.argmin().item()
+        if self.permute_options and prediction != -1:
+            prediction = self.permutations[idx][prediction].item()
         item = self.items[idx]
         return [
             idx,
             wandb.Image(str((self.root_dir / item['image_path']).resolve())) if img_as_object else item['image_path'],
             item['caption_options'][prediction] if prediction != -1 else "N/A",
-            item['caption_options'][answer],
+            item['caption_options'][0],
         ]
 
 

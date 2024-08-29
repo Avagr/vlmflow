@@ -32,7 +32,7 @@ class EvaluationResult:
     def matches(self):
         matches = []
         if isinstance(self.predictions, torch.Tensor):
-            matches = (self.predictions == self.true_labels)
+            matches = (self.predictions == self.true_labels).tolist()
         elif isinstance(self.predictions[0], str):
             for pred, label in zip(self.predictions, self.true_labels):
                 if pred.strip().lower() == label.strip().lower():

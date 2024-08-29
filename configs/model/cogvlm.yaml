@@ -1,4 +1,4 @@
 name: cogvlm
 path: THUDM/cogvlm-chat-hf
-tokenizer_path: lmsys/vicuna-7b-v1.5
+processor_path: lmsys/vicuna-7b-v1.5
 dtype: bfloat16

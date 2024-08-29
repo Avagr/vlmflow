@@ -4,3 +4,5 @@ weights_path: /home/projects/shimon/agroskin/models/lxt_llava/13b.model
 processor_path: "${model.config_name}"
 dtype: bfloat16
 attn_impl: eager
+img_token_id: 32000
+img_dims: [24, 24]

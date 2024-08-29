@@ -3,6 +3,8 @@ from typing import List, Any
 import torch
 from fancy_einsum import einsum
 from jaxtyping import Float, Int
+from torch import nn
+from transformers import GenerationMixin
 
 from models.transparent_llm import TransparentLlm, ModelInfo
 from utils.hooks import InputsHook, OutputsHook
@@ -48,6 +50,9 @@ class TransparentLlava(TransparentLlm):
         self.last_run_logits = None
         self.last_run_attentions = None
 
+    def underlying_model(self) -> nn.Module:
+        return self.llava
+
     def clear_state(self):
         del self.last_run_inputs
         self.last_run_inputs = None
@@ -64,7 +69,6 @@ class TransparentLlava(TransparentLlm):
     def model_info(self) -> ModelInfo:
         return ModelInfo(
             name=self.name,
-            n_params_estimate=1337_1337_1337,
             n_layers=self.n_layers,
             n_heads=self.n_heads,
             d_model=self.d_model,
@@ -108,6 +112,13 @@ class TransparentLlava(TransparentLlm):
             else:
                 res.append(self.processor.tokenizer.decode(tok))
         return res
+
+    def logit_lens(self, after_layer: int, token: int, normalize: bool) -> Float[torch.Tensor, "batch vocab"]:
+        res_after_layer = self.residual_out(after_layer)
+        if normalize:
+            return self.llava.language_model.lm_head(self.llava.language_model.model.norm(res_after_layer)[:, token, :])
+        else:
+            return self.llava.language_model.lm_head(res_after_layer[:, token, :])
 
     def logits(self) -> Float[torch.Tensor, "batch pos d_vocab"]:
         raise NotImplementedError

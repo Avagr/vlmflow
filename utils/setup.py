@@ -5,12 +5,13 @@ from transformers import LlavaForConditionalGeneration, AutoProcessor, Generatio
 
 from datasets.base import EvalWrapper
 from datasets.gqa import GQA, GQAEval, GQACollate
+from datasets.coco import UnlabeledCoco, UnlabeledCocoCollate, UnlabeledCocoEval
 from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
 from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
 from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate
 from models.transparent_models import TransparentLlava
 from models.wrappers import GenerativeWrapper
-from utils.callbacks import GraphCallback, GraphTensorCallback
+from utils.callbacks import GraphTensorCallback, LogitLensCallback
 
 
 def create_model(cfg, device):
@@ -44,7 +45,7 @@ def create_model(cfg, device):
 def create_eval_task(cfg, device):
     sampling_config = GenerationConfig(**cfg.sampling_params)
     match cfg.task.name:
-        case "SEED-Bench 2":
+        case "SEED-Bench-2":
             dataset = SEEDBenchSingleImage(cfg.task.task_num, Path(cfg.task.json_path), Path(cfg.task.image_root))
             collate = SEEDBenchCollate()
             wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, device, cfg.task.eval_method)
@@ -65,6 +66,11 @@ def create_eval_task(cfg, device):
             collate = GQACollate()
             wrapper = GQAEval(cfg.prompt.text, device, cfg.task.eval_method, sampling_config)
 
+        case "UnlabeledCOCO":
+            dataset = UnlabeledCoco(Path(cfg.task.img_dir), Path(cfg.task.img_descriptions_file), cfg.task.dataset_size)
+            collate = UnlabeledCocoCollate()
+            wrapper = UnlabeledCocoEval(cfg.prompt.text, device, sampling_config)
+
         case "MMVP":
             dataset = MMVP(Path(cfg.task.csv_path), Path(cfg.task.img_dir))
             collate = MMVPCollate()
@@ -76,10 +82,14 @@ def create_eval_task(cfg, device):
     return dataset, wrapper, collate
 
 
-def create_callbacks(cfg, eval_wrapper: EvalWrapper, run_folder: Path):
+def create_callbacks(cfg, eval_wrapper: EvalWrapper, run_folder: Path, model: GenerativeWrapper):
     if cfg.save_full_graphs:
         (run_folder / "graphs").mkdir(parents=True, exist_ok=True)
         # callback = GraphCallback(run_folder / "graphs", cfg.renormalization_threshold, cfg.sparsification_threshold)
-        callback = GraphTensorCallback(run_folder / "graphs")
+        callback = GraphTensorCallback(run_folder / "graphs", head_batch_size=cfg.head_batch_size)
+        eval_wrapper.add_callback(callback)
+    if cfg.last_token_logit_lens:
+        callback = LogitLensCallback(["A", "B", "C", "D"], normalize_lens=cfg.normalize_lens,
+                                     tokenizer=model.processor.tokenizer)
         eval_wrapper.add_callback(callback)
     return eval_wrapper.callbacks

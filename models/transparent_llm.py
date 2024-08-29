@@ -17,9 +17,6 @@ from torch import nn
 class ModelInfo:
     name: str
 
-    # Not the actual number of parameters, but rather the order of magnitude
-    n_params_estimate: int
-
     n_layers: int
     n_heads: int
     d_model: int
@@ -64,6 +61,13 @@ class TransparentLlm(ABC, nn.Module):
         pass
 
     @abstractmethod
+    def logit_lens(self, after_layer: int, token: int, normalize: bool) -> Float[torch.Tensor, "batch vocab"]:
+        """
+        Return the logits for the given token after the given layer using the "logit lens" technique
+        """
+        pass
+
+    @abstractmethod
     def logits(self) -> Float[torch.Tensor, "batch pos d_vocab"]:
         pass
 
@@ -80,6 +84,13 @@ class TransparentLlm(ABC, nn.Module):
         normalize: whether to apply the final normalization before the unembedding.
         Setting it to True and applying to output of the last layer gives the output of
         the model.
+        """
+        pass
+
+    @abstractmethod
+    def underlying_model(self) -> nn.Module:
+        """
+        Return the underlying model to access some additional methods that are not part of the interface.
         """
         pass
 

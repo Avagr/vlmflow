@@ -125,8 +125,7 @@ class SEEDBenchSingleImageEval(EvalWrapper):
             case _:
                 raise ValueError(f"Unsupported evaluation method {self.eval_method}")
 
-        if self.callbacks is not None:
-            for callback in self.callbacks:
-                callback(model, idx, texts, answers, predictions, scores)
+        for callback in self.callbacks:
+            callback(model, idx, texts, answers, predictions, scores)
 
         return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, metrics)

@@ -9,7 +9,8 @@ from typing import Tuple
 import einops
 import torch
 from jaxtyping import Float
-# from typeguard import typechecked
+
+from models.transparent_models import TransparentLlava
 
 
 @torch.no_grad()
@@ -51,76 +52,6 @@ def get_contributions(
 
 
 @torch.no_grad()
-def get_contributions_with_one_off_part(
-        parts: torch.Tensor,
-        one_off: torch.Tensor,
-        whole: torch.Tensor,
-        distance_norm: int = 1,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Same as computing the contributions, but there is one additional part. That's useful
-    because we always have the residual stream as one of the parts.
-
-    See `get_contributions` documentation about `parts` and `whole` dimensions. The
-    `one_off` should have the same dimensions as `whole`.
-
-    Returns a pair consisting of
-    1. contributions tensor for the `parts`
-    2. contributions tensor for the `one_off` vector
-    """
-    assert one_off.shape == whole.shape
-
-    k = len(parts.shape) - len(whole.shape)
-    assert k >= 0
-
-    # Flatten the p_ dimensions, get contributions for the list, unflatten.
-    flat = parts.flatten(start_dim=0, end_dim=k - 1)
-    flat = torch.cat([flat, one_off.unsqueeze(0)])
-    contributions = get_contributions(flat, whole, distance_norm)
-    parts_contributions, one_off_contributions = torch.split(
-        contributions, flat.shape[0] - 1
-    )
-    return (
-        parts_contributions.unflatten(0, parts.shape[0:k]),
-        one_off_contributions[0],
-    )
-
-
-@torch.no_grad()
-def get_attention_contributions(
-        resid_pre: Float[torch.Tensor, "batch pos d_model"],
-        resid_mid: Float[torch.Tensor, "batch pos d_model"],
-        decomposed_attn: Float[torch.Tensor, "batch pos key_pos head d_model"],
-        distance_norm: int = 1,
-) -> Tuple[
-    Float[torch.Tensor, "batch pos key_pos head"],
-    Float[torch.Tensor, "batch pos"],
-]:
-    """
-    Returns a pair of
-    - a tensor of contributions of each token via each head
-    - the contribution of the residual stream.
-    """
-
-    # part dimensions | batch dimensions | vector dimension
-    # ----------------+------------------+-----------------
-    # key_pos, head   | batch, pos       | d_model
-    parts = einops.rearrange(
-        decomposed_attn,
-        "batch pos key_pos head d_model -> key_pos head batch pos d_model",
-    )
-    attn_contribution, residual_contribution = get_contributions_with_one_off_part(
-        parts, resid_pre, resid_mid, distance_norm
-    )
-    return (
-        einops.rearrange(
-            attn_contribution, "key_pos head batch pos -> batch pos key_pos head"
-        ),
-        residual_contribution,
-    )
-
-
-@torch.no_grad()
 def get_mlp_contributions(
         resid_mid: Float[torch.Tensor, "batch pos d_model"],
         resid_post: Float[torch.Tensor, "batch pos d_model"],
@@ -135,27 +66,6 @@ def get_mlp_contributions(
         torch.stack((mlp_out, resid_mid)), resid_post, distance_norm
     )
     return contributions[0], contributions[1]
-
-
-@torch.no_grad()
-def get_decomposed_mlp_contributions(
-        resid_mid: Float[torch.Tensor, "d_model"],
-        resid_post: Float[torch.Tensor, "d_model"],
-        decomposed_mlp_out: Float[torch.Tensor, "hidden d_model"],
-        distance_norm: int = 1,
-) -> Tuple[Float[torch.Tensor, "hidden"], float]:
-    """
-    Similar to `get_mlp_contributions`, but it takes the MLP output for each neuron of
-    the hidden layer and thus computes a contribution per neuron.
-
-    Doesn't contain batch and token dimensions for sake of saving memory. But we may
-    consider adding them.
-    """
-
-    neuron_contributions, residual_contribution = get_contributions_with_one_off_part(
-        decomposed_mlp_out, resid_mid, resid_post, distance_norm
-    )
-    return neuron_contributions, residual_contribution.item()
 
 
 @torch.no_grad()
@@ -195,3 +105,76 @@ def apply_threshold_and_renormalize(
         c_blocks / denom.reshape(denom.shape + (1,) * bound_dims),
         c_residual / denom,
     )
+
+@torch.compile
+def pairwise_distances(rearranged, whole, p):
+    return torch.nn.functional.pairwise_distance(rearranged, whole.expand(rearranged.shape), p=p)
+
+
+@torch.no_grad()
+def get_contribution_matrices(
+        model: TransparentLlava,
+        batch_i: int,
+        head_batch_size: int
+) -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
+    n_layers = model.model_info().n_layers
+    n_heads = model.model_info().n_heads
+    n_tokens = model.tokens()[batch_i].shape[0]
+    distance_norm = 1
+
+    attn_contributions = []
+    res_attn_contributions = []
+    ffn_contributions = []
+    res_ffn_contributions = []
+
+    for layer in range(n_layers):
+        c_attn, c_resid_attn = get_attention_contributions_efficiently(
+            model, layer, batch_i, n_tokens, n_heads,
+            distance_norm, head_batch_size=head_batch_size
+        )
+        contrib = c_attn[batch_i].sum(dim=-1)
+
+        attn_contributions.append(contrib.cpu().squeeze())
+        res_attn_contributions.append(c_resid_attn.cpu().squeeze())
+
+        c_ffn, c_resid_ffn = get_mlp_contributions(
+            resid_mid=model.residual_after_attn(layer)[batch_i].unsqueeze(0),
+            resid_post=model.residual_out(layer)[batch_i].unsqueeze(0),
+            mlp_out=model.ffn_out(layer)[batch_i].unsqueeze(0),
+        )
+
+        ffn_contributions.append(c_ffn.cpu().squeeze())
+        res_ffn_contributions.append(c_resid_ffn.cpu().squeeze())
+
+    return attn_contributions, res_attn_contributions, ffn_contributions, res_ffn_contributions
+
+
+def get_attention_contributions_efficiently(model, layer, batch_i, n_tokens, n_heads, distance_norm, head_batch_size=1):
+    one_off = model.residual_in(layer)[batch_i].unsqueeze(0)
+    whole = model.residual_after_attn(layer)[batch_i].unsqueeze(0)
+    distances = []
+    for head_i in range(0, n_heads, head_batch_size):
+        decomposed_attn = model.decomposed_attn_head_slice(head_i, head_i + head_batch_size, batch_i, layer)
+
+        rearranged = einops.rearrange(
+            decomposed_attn,
+            "pos key_pos head d_model -> key_pos head pos d_model",
+        )
+        distances.append(pairwise_distances(rearranged, whole, p=distance_norm))
+    distance = torch.cat(distances, dim=1).flatten(start_dim=0, end_dim=1)
+    distance = torch.cat([distance, torch.nn.functional.pairwise_distance(one_off, whole, p=distance_norm)],
+                         dim=0).unsqueeze(1)
+    whole_norm = torch.norm(whole, p=distance_norm, dim=-1)
+    distance = (whole_norm - distance).clip(min=1e-5)
+    s = distance.sum(dim=0, keepdim=True)
+    contrib = distance / s
+    parts_contributions, one_off_contributions = torch.split(
+        contrib, contrib.shape[0] - 1
+    )
+    attn_contribution, residual_contribution = (
+        parts_contributions.unflatten(0, (n_tokens, n_heads)),
+        one_off_contributions[0].clone(),
+    )
+    c_attn = einops.rearrange(attn_contribution, "key_pos head batch pos -> batch pos key_pos head")
+    c_resid_attn = residual_contribution
+    return c_attn, c_resid_attn
