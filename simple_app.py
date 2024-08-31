@@ -7,8 +7,6 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from transformers import LlavaForConditionalGeneration, AutoProcessor
 
-from flow.contributions import build_full_graph, apply_graph_threshold
-from models.transparent_models import TransparentLlava
 from ui import contribution_graph
 from utils.misc import plot_image_with_heatmap
 

@@ -14,7 +14,7 @@ def build_graph_from_contributions(
     full_graph.gp.num_layers = full_graph.new_gp("int", val=num_layers)
     simple_graph.gp.num_layers = simple_graph.new_gp("int", val=num_layers)
 
-    # TODO maybe also add modality to the full_graph
+    # MAYBE also add modality to the full_graph
     simple_graph.vp.modality = simple_graph.new_vertex_property("string", val='mixed')
     simple_graph.vp.token_num = simple_graph.new_vertex_property("int")
     node_layers: dict[int, list[int]] = {k: [] for k in range(num_layers + 1)}
@@ -34,6 +34,7 @@ def build_thresholded_graph(
         top_token_num: int, threshold: float, attn_contribs: list[torch.Tensor],
         ffn_contribs: list[torch.Tensor], ffn_res_contribs: list[torch.Tensor]
 ) -> tuple[Graph, Graph]:
+
     threshold_attn = [(c > threshold).tolist() for c in attn_contribs]
     threshold_ffn = [(c > threshold).tolist() for c in ffn_contribs]
     threshold_ffn_res = [(c > threshold).tolist() for c in ffn_res_contribs]
@@ -43,9 +44,8 @@ def build_thresholded_graph(
     num_tokens = attn_contribs[0].size(0)
     # 0-based indexing for layers, but we use 1-based indexing in node names, with 0 being the initial tokens
     if top_token_num < 0:
-        top_token_num = num_tokens - 1
+        top_token_num = num_tokens + top_token_num
     stack = [(top_token_num, num_layers - 1)]
-
     visited_nodes = set()
 
     while len(stack) > 0:

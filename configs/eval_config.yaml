@@ -22,7 +22,7 @@ need_grad: false
 mixed_precision: false
 use_tf32: false
 
-disable_wandb: true
+disable_wandb: false
 show_tqdm: true
 resume_wandb_id: null
 detect_anomalies: false

@@ -35,7 +35,7 @@ class GenerativeWrapper(nn.Module):
         self.model(input_ids=generated_ids[:, :-1], pixel_values=inputs.pixel_values, attention_mask=padded_mask,
                    output_attentions=self.output_attentions, use_cache=False)
 
-        return self.processor.batch_decode(generated_ids, skip_special_tokens=True)
+        return self.processor.batch_decode(generated_ids)
 
     def forward(self, images: list[torch.Tensor], texts: list[str], **kwargs) -> torch.Tensor:
         inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,
