@@ -68,7 +68,7 @@ class UnlabeledCocoEval(EvalWrapper):
         idx, images = batch
         batch_size = idx.shape[0]
         texts = [self.prompt] * batch_size
-        generated_text = model.generate(images, texts, self.generation_config)
+        generated_text, generated_ids = model.generate(images, texts, self.generation_config)
         for callback in self.callbacks:
             callback(model, idx, generated_text)
-        return EvaluationResult(batch_size, idx.tolist(), texts, generated_text, generated_text, {})
+        return EvaluationResult(batch_size, idx.tolist(), texts, generated_text, generated_text, {'generated_ids': generated_ids})

@@ -24,7 +24,7 @@ class GenerativeWrapper(nn.Module):
         self.num_image_patches = 576
         self.output_attentions = output_attentions
 
-    def generate(self, images: list[torch.Tensor], texts: list[str], config: GenerationConfig) -> list[str]:
+    def generate(self, images: list[torch.Tensor], texts: list[str], config: GenerationConfig) -> (list[str], list[list[int]]):
         inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,
                                                                                                  dtype=self.dtype)
         generated_ids = self.model.underlying_model().generate(**inputs, generation_config=config)
@@ -35,7 +35,7 @@ class GenerativeWrapper(nn.Module):
         self.model(input_ids=generated_ids[:, :-1], pixel_values=inputs.pixel_values, attention_mask=padded_mask,
                    output_attentions=self.output_attentions, use_cache=False)
 
-        return self.processor.batch_decode(generated_ids)
+        return self.processor.batch_decode(generated_ids), generated_ids.tolist()
 
     def forward(self, images: list[torch.Tensor], texts: list[str], **kwargs) -> torch.Tensor:
         inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,

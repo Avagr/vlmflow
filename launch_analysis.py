@@ -30,7 +30,7 @@ def run(cfg: DictConfig):
     processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-    full_graph_dict, simple_graph_dict, node_layers_dict, generated_token_ids_dict = {}, {}, {}, {}
+    full_graph_dict, simple_graph_dict, node_layers_dict = {}, {}, {}
     with concurrent.futures.ProcessPoolExecutor(max_workers=16) as executor:
         for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
                              desc="Building graphs"):
@@ -41,10 +41,9 @@ def run(cfg: DictConfig):
             img_begin, img_end = get_image_token_boundaries(processor.tokenizer, row.prompt, cfg.model.img_token_id,
                                                             cfg.model.img_dims)
 
-            prompt_with_special_tokens = processor.tokenizer.decode(processor.tokenizer(row.prompt).input_ids)
-            generated_part = row.generated_caption[len(prompt_with_special_tokens):]
-            tokenized_generated_part = processor.tokenizer(generated_part, add_special_tokens=False)["input_ids"]
-            generated_len = len(tokenized_generated_part)
+            tokenized_prompt = processor.tokenizer(row.prompt)["input_ids"]
+            generated_token_ids = row.generated_ids[len(tokenized_prompt):]
+            generated_len = len(generated_token_ids)
 
             build_graph_for = partial(build_graph_from_contributions, attn=attn, attn_res=attn_res, ffn=ffn, ffn_res=ffn_res,
                                       img_begin=img_begin, img_end=img_end)
@@ -55,19 +54,17 @@ def run(cfg: DictConfig):
                                         range(-generated_len, 0)
                            ))
 
-            full_graphs, simple_graphs, node_layers, generated_token_ids = [], [], [], []
+            full_graphs, simple_graphs, node_layers = [], [], []
 
 
-            for token_id, (full_graph, simple_graph, node_layer) in zip(tokenized_generated_part, results):
+            for full_graph, simple_graph, node_layer in results:
                 full_graphs.append(full_graph)
                 simple_graphs.append(simple_graph)
                 node_layers.append(node_layer)
-                generated_token_ids.append(token_id)
 
             full_graph_dict[idx] = full_graphs
             simple_graph_dict[idx] = simple_graphs
             node_layers_dict[idx] = node_layers
-            generated_token_ids_dict[idx] = generated_token_ids
 
     simple_graph_metrics = [modality_ratio]  # TODO make configurable
     for metric in simple_graph_metrics:
@@ -82,7 +79,6 @@ def run(cfg: DictConfig):
     pickle.dump(full_graph_dict, open(base_dir / "full_graph_dict.pkl", "wb"))
     pickle.dump(simple_graph_dict, open(base_dir / "simple_graph_dict.pkl", "wb"))
     pickle.dump(node_layers_dict, open(base_dir / "node_layers_dict.pkl", "wb"))
-    pickle.dump(generated_token_ids_dict, open(base_dir / "generated_token_ids_dict.pkl", "wb"))
 
 
 if __name__ == '__main__':
