@@ -10,7 +10,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    height: auto;
 }
 
 .svg {
@@ -28,6 +28,7 @@
 
 .selection,
 .selection:hover {
+    /*fill: blue;*/
     fill: orange;
 }
 

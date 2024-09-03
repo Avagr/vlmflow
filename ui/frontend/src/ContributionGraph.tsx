@@ -156,6 +156,7 @@ function isValidSelection(selection: Selection, nLayers: number, nTokens: number
 const ContributionGraph = ({ args }: ComponentProps) => {
     const modelInfo = args['model_info']
     const tokens = args['tokens']
+    const tokensTop = args['tokens_top']
     const edgesRaw: EdgeRaw[][] = args['edges_per_token']
 
     const nLayers = modelInfo === null ? 0 : modelInfo.n_layers
@@ -214,7 +215,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             .domain([-2, nTokens - 1])
             .range([0, renderParams.cellW * (nTokens + 2)])
         const y = d3.scaleLinear()
-            .domain([-1, nLayers])
+            .domain([-1, nLayers + 2])
             .range([renderParams.cellH * (nLayers + 2), 0])
         return [x, y]
     }, [nLayers, nTokens])
@@ -333,6 +334,19 @@ const ContributionGraph = ({ args }: ComponentProps) => {
         }))
     }, [tokens, xScale, yScale])
 
+    const tokenLabelsTop: Label[] = useMemo(() => {
+        if (!tokensTop) {
+            return []
+        }
+        return tokensTop.map((s: string, i: number) => ({
+            text: s.replace(/ /g, '·'),
+            pos: {
+                x: xScale(i + 0.5),
+                y: yScale(-1.5),
+            },
+        }))
+    }, [tokensTop, xScale, yScale])
+
     const layerLabels: Label[] = useMemo(() => {
         return Array.from(Array(nLayers).keys()).map(i => ({
             text: 'L' + i,
@@ -353,8 +367,9 @@ const ContributionGraph = ({ args }: ComponentProps) => {
         ]))
     }, [nTokens, nLayers, xScale, yScale])
 
-    const totalW = xScale(nTokens + 2)
-    const totalH = yScale(-4)
+    let scaleFactor = 0.66;
+    const totalW = xScale(nTokens + 2) * scaleFactor
+    const totalH = yScale(-4) * scaleFactor
     useEffect(() => {
         Streamlit.setFrameHeight(totalH)
     }, [totalH])
@@ -369,7 +384,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
     )
     const edgeWidthScale = d3.scaleLinear([0.0, 0.5, 1.0], [2.0, 3.0, 3.0])
 
-    const svgRef = useRef(null);
+    const svgRef = useRef<SVGSVGElement | null>(null);
 
     useEffect(() => {
         const getNodeStyle = (p: NodeProps, type: string) => {
@@ -382,10 +397,14 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             return 'selectable-item inactive-node'
         }
 
-        const svg = d3.select(svgRef.current)
+
+        const svg = d3.select<SVGSVGElement, unknown>(svgRef.current as SVGSVGElement);
         svg.selectAll('*').remove()
 
-        svg
+        // Create a group to hold all graph elements
+        const svgGroup = svg.append('g').attr('transform', `scale(${scaleFactor})`);
+
+        svgGroup
             .selectAll('layers')
             .data(Array.from(Array(nLayers).keys()).filter((x) => x % 2 === 1))
             .enter()
@@ -397,7 +416,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             .attr('height', (layer) => yScale(layer) - yScale(layer + 1))
             .attr('rx', renderParams.layerCornerRadius)
 
-        svg
+        svgGroup
             .selectAll('edges')
             .data(edges[curStartToken])
             .enter()
@@ -421,7 +440,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
                 handleEdgeClick(edge)
             })
 
-        svg
+        svgGroup
             .selectAll('residual')
             .data(nodeProps)
             .enter()
@@ -438,7 +457,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
                 handleRepresentationClick(p.node)
             })
 
-        svg
+        svgGroup
             .selectAll('ffn')
             .data(nodeProps)
             .enter()
@@ -453,7 +472,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
                 handleRepresentationClick(p.node)
             })
 
-        svg
+        svgGroup
             .selectAll('token_labels')
             .data(tokenLabels)
             .enter()
@@ -467,7 +486,21 @@ const ContributionGraph = ({ args }: ComponentProps) => {
                 'rotate(-40, ' + label.pos.x + ', ' + label.pos.y + ')')
             .text((label: Label) => label.text)
 
-        svg
+        svgGroup
+            .selectAll('token_labels_top')
+            .data(tokenLabelsTop)
+            .enter()
+            .append('text')
+            .attr('x', (label: Label) => label.pos.x)
+            .attr('y', (label: Label) => yScale(nLayers + 0.2)) // Adjust y-coordinate for top position
+            .attr('text-anchor', 'end')
+            .attr('dominant-baseline', 'middle')
+            .attr('alignment-baseline', 'bottom')
+            .attr('transform', (label: Label) =>
+                'rotate(60, ' + label.pos.x + ', ' + yScale(nLayers + 0.2) + ')')
+            .text((label: Label) => label.text)
+
+        svgGroup
             .selectAll('layer_labels')
             .data(layerLabels)
             .enter()
@@ -478,7 +511,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             .attr('alignment-baseline', 'middle')
             .text((label: Label) => label.text)
 
-        svg
+        svgGroup
             .selectAll('token_selectors')
             .data(tokenSelectors)
             .enter()
@@ -498,6 +531,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
         edges,
         nodeProps,
         tokenLabels,
+        tokenLabelsTop,
         layerLabels,
         tokenSelectors,
         curStartToken,
@@ -511,7 +545,11 @@ const ContributionGraph = ({ args }: ComponentProps) => {
         yScale
     ])
 
-    return <svg ref={svgRef} width={totalW} height={totalH}></svg>
+
+
+    return <svg ref={svgRef} width={totalW} height={totalH} style={{ border: '3px solid black' }}></svg>
 }
+
+
 
 export default withStreamlitConnection(ContributionGraph)

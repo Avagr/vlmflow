@@ -10,8 +10,8 @@ from typing import List, Optional
 import networkx as nx
 import streamlit.components.v1 as components
 
-from llm_transparency_tool.models.transparent_llm import ModelInfo
-from llm_transparency_tool.server.graph_selection import GraphSelection, UiGraphNode
+from models.transparent_llm import ModelInfo
+from ui.graph_selection import GraphSelection, UiGraphNode
 
 _RELEASE = True
 
@@ -46,9 +46,9 @@ def is_selection_valid(s: GraphSelection, n_layers: int, n_tokens: int):
 
 
 def contribution_graph(
-    model_info: ModelInfo,
+    n_layers: int,
     tokens: List[str],
-    graphs: List[nx.Graph],
+    graphs_edge_lists,
     key: str,
 ) -> Optional[GraphSelection]:
     """Create a new instance of contribution graph.
@@ -56,11 +56,14 @@ def contribution_graph(
     Returns selected graph node or None if nothing was selected.
     """
 
+    assert len(tokens) == len(graphs_edge_lists) + 1
+
     result = _component_func(
         component="graph",
-        model_info=model_info.__dict__,
-        tokens=tokens,
-        edges_per_token=[[] for _ in range(len(tokens) - 1)] + [nx.node_link_data(graphs[0])["links"]],
+        model_info={"n_layers": n_layers},
+        tokens=tokens[:-1],
+        tokens_top=tokens[1:],
+        edges_per_token=graphs_edge_lists,
         default=None,
         key=key,
     )
@@ -68,7 +71,6 @@ def contribution_graph(
     selection = GraphSelection.from_json(result)
 
     n_tokens = len(tokens)
-    n_layers = model_info.n_layers
     # We need this extra protection because even though the component has to check for
     # the validity of the selection, sometimes it allows invalid output. It's some
     # unexpected effect that has something to do with React and how the output value is
