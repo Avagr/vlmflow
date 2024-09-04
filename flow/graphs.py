@@ -1,3 +1,4 @@
+from contourpy.util.data import simple
 from graph_tool import Graph
 import torch
 
@@ -17,9 +18,12 @@ def build_graph_from_contributions(
     # MAYBE also add modality to the full_graph
     simple_graph.vp.modality = simple_graph.new_vertex_property("string", val='mixed')
     simple_graph.vp.token_num = simple_graph.new_vertex_property("int")
+    simple_graph.vp.layer_num = simple_graph.new_vertex_property("int")
     node_layers: dict[int, list[int]] = {k: [] for k in range(num_layers + 1)}
     for v in range(simple_graph.num_vertices()):
         layer, num = map(int, simple_graph.vp.ids[v].split('_'))
+        simple_graph.vp.token_num[v] = num
+        simple_graph.vp.layer_num[v] = layer
         node_layers[layer].append(v)
         if layer == 0:
             if img_begin <= num <= img_end:

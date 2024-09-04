@@ -183,6 +183,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
     if (startToken >= nTokens) {
         curStartToken = nTokens - 1
         setStartToken(curStartToken)
+
     }
 
     const handleRepresentationClick = (node: Node) => {
@@ -204,10 +205,12 @@ const ContributionGraph = ({ args }: ComponentProps) => {
         }
         setSelection(newSelection)
         Streamlit.setComponentValue(newSelection)
+
     }
 
     const handleTokenClick = (t: number) => {
         setStartToken(t)
+        Streamlit.setComponentValue(t)
     }
 
     const [xScale, yScale] = useMemo(() => {
@@ -525,6 +528,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             .attr('r', renderParams.tokenSelectorSize / 2)
             .on('click', (event: PointerEvent, [i,]) => {
                 handleTokenClick(i)
+
             })
     }, [
         cells,

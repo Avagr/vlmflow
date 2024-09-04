@@ -50,7 +50,7 @@ def contribution_graph(
     tokens: List[str],
     graphs_edge_lists,
     key: str,
-) -> Optional[GraphSelection]:
+) -> Optional[int]:
     """Create a new instance of contribution graph.
 
     Returns selected graph node or None if nothing was selected.
@@ -64,21 +64,15 @@ def contribution_graph(
         tokens=tokens[:-1],
         tokens_top=tokens[1:],
         edges_per_token=graphs_edge_lists,
-        default=None,
+        default="Default",
         key=key,
     )
 
-    selection = GraphSelection.from_json(result)
+    # check that result is a number
+    if isinstance(result, int):
+        return result
 
-    n_tokens = len(tokens)
-    # We need this extra protection because even though the component has to check for
-    # the validity of the selection, sometimes it allows invalid output. It's some
-    # unexpected effect that has something to do with React and how the output value is
-    # set for the component.
-    if not is_selection_valid(selection, n_layers, n_tokens):
-        selection = None
-
-    return selection
+    return None
 
 
 def selector(
