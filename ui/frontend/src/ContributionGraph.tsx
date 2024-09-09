@@ -6,18 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import {
-    ComponentProps,
-    Streamlit,
-    withStreamlitConnection,
-} from 'streamlit-component-lib'
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {ComponentProps, Streamlit, withStreamlitConnection,} from 'streamlit-component-lib'
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import * as d3 from 'd3';
-
-import {
-    Label,
-    Point,
-} from './common';
+import {Label, Point,} from './common';
 import './LlmViewer.css';
 
 export const renderParams = {
@@ -153,11 +145,18 @@ function isValidSelection(selection: Selection, nLayers: number, nTokens: number
     return true
 }
 
-const ContributionGraph = ({ args }: ComponentProps) => {
+const ContributionGraph = ({args}: ComponentProps) => {
     const modelInfo = args['model_info']
     const tokens = args['tokens']
     const tokensTop = args['tokens_top']
     const edgesRaw: EdgeRaw[][] = args['edges_per_token']
+    const nodeStyleMap: Map<string, [color: string, value: number]>[] = [];
+    for (let i = 0; i < args['node_style_map'].length; i++) {
+        // console.log('args', args['node_style_map'][i])
+        nodeStyleMap.push(new Map(args['node_style_map'][i]));  // noqa
+    }
+
+    // console.log('nodeStyleMap', nodeStyleMap)
 
     const nLayers = modelInfo === null ? 0 : modelInfo.n_layers
     const nTokens = tokens === null ? 0 : tokens.length
@@ -173,7 +172,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             edge: null,
         }
         setSelection(curSelection)
-        Streamlit.setComponentValue(curSelection)
+        // Streamlit.setComponentValue(curSelection)
     }
 
     const [startToken, setStartToken] = useState<number>(nTokens - 1)
@@ -187,15 +186,17 @@ const ContributionGraph = ({ args }: ComponentProps) => {
     }
 
     const handleRepresentationClick = (node: Node) => {
+        console.log("Node Clicked", node)
         const newSelection: Selection = {
             node: node,
             edge: null,
         }
         setSelection(newSelection)
-        Streamlit.setComponentValue(newSelection)
+        // Streamlit.setComponentValue(newSelection)
     }
 
     const handleEdgeClick = (edge: Edge) => {
+        console.log("Edge Clicked", edge)
         if (!edge.isSelectable) {
             return
         }
@@ -204,7 +205,7 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             edge: edge,
         }
         setSelection(newSelection)
-        Streamlit.setComponentValue(newSelection)
+        // Streamlit.setComponentValue(newSelection)
 
     }
 
@@ -244,16 +245,16 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             const cx = xScale(cell.token + 0.5)
             const cy = yScale(cell.layer - 0.5)
             result.set(
-                JSON.stringify({ cell: cell, item: CellItem.AfterAttn }),
-                { x: cx, y: cy + h / 4 },
+                JSON.stringify({cell: cell, item: CellItem.AfterAttn}),
+                {x: cx, y: cy + h / 4},
             )
             result.set(
-                JSON.stringify({ cell: cell, item: CellItem.AfterFfn }),
-                { x: cx, y: cy - h / 4 },
+                JSON.stringify({cell: cell, item: CellItem.AfterFfn}),
+                {x: cx, y: cy - h / 4},
             )
             result.set(
-                JSON.stringify({ cell: cell, item: CellItem.Ffn }),
-                { x: cx + 5 * w / 16, y: cy },
+                JSON.stringify({cell: cell, item: CellItem.Ffn}),
+                {x: cx + 5 * w / 16, y: cy},
             )
         }
         for (let t = 0; t < nTokens; t++) {
@@ -264,8 +265,8 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             const cx = xScale(cell.token + 0.5)
             const cy = yScale(cell.layer - 1.0)
             result.set(
-                JSON.stringify({ cell: cell, item: CellItem.Original }),
-                { x: cx, y: cy + h / 4 },
+                JSON.stringify({cell: cell, item: CellItem.Original}),
+                {x: cx, y: cy + h / 4},
             )
         }
         return result
@@ -290,8 +291,8 @@ const ContributionGraph = ({ args }: ComponentProps) => {
                     weight: edge.weight,
                     from: u,
                     to: v,
-                    fromPos: nodeCoords.get(JSON.stringify(u)) ?? { 'x': 0, 'y': 0 },
-                    toPos: nodeCoords.get(JSON.stringify(v)) ?? { 'x': 0, 'y': 0 },
+                    fromPos: nodeCoords.get(JSON.stringify(u)) ?? {'x': 0, 'y': 0},
+                    toPos: nodeCoords.get(JSON.stringify(v)) ?? {'x': 0, 'y': 0},
                     isSelectable: isSelectable,
                     isFfn: isFfn,
                 })
@@ -374,12 +375,12 @@ const ContributionGraph = ({ args }: ComponentProps) => {
     const totalW = xScale(nTokens + 2) * scaleFactor
     const totalH = yScale(-4) * scaleFactor
     useEffect(() => {
-        Streamlit.setFrameHeight(totalH)
+        Streamlit.setFrameHeight(totalH + 30)
     }, [totalH])
 
     const colorScale = d3.scaleLinear(
         [0.0, 0.5, 1.0],
-        ['#9eba66', 'darkolivegreen', 'darkolivegreen']
+        ['rgb(120,120,120)', 'rgb(120,120,120)', 'rgb(120,120,120)']
     )
     const ffnEdgeColorScale = d3.scaleLinear(
         [0.0, 0.5, 1.0],
@@ -389,16 +390,102 @@ const ContributionGraph = ({ args }: ComponentProps) => {
 
     const svgRef = useRef<SVGSVGElement | null>(null);
 
+    const downloadImage = () => {
+        const svg = svgRef.current;
+        if (!svg) return;
+
+        // Get the CSS styles
+        const styles = Array.from(document.styleSheets)
+            .map((styleSheet) => {
+                try {
+                    return Array.from(styleSheet.cssRules)
+                        .map((rule) => rule.cssText)
+                        .join(' ');
+                } catch (e) {
+                    console.warn('Could not load CSS rules from stylesheet', styleSheet.href);
+                    return '';
+                }
+            })
+            .join(' ');
+
+        // Create a style element
+        const styleElement = document.createElement('style');
+        styleElement.textContent = styles;
+
+        // Append the style element to the SVG
+        svg.prepend(styleElement);
+
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+
+        img.onload = () => {
+            // Increase resolution by scaling the canvas size
+            const scaleFactor = 2; // Adjust this value to increase resolution
+            canvas.width = img.width * scaleFactor;
+            canvas.height = img.height * scaleFactor;
+
+            if (ctx !== null) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.scale(scaleFactor, scaleFactor); // Scale the context
+                ctx.drawImage(img, 0, 0);
+            }
+
+            const pngFile = canvas.toDataURL('image/png');
+            const downloadLink = document.createElement('a');
+            downloadLink.href = pngFile;
+            downloadLink.download = 'contribution_graph.png';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        };
+
+        img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+
+        // Remove the style element after serialization
+        svg.removeChild(styleElement);
+    };
+
+    const tooltipRef = useRef<HTMLDivElement | null>(null);
+
     useEffect(() => {
         const getNodeStyle = (p: NodeProps, type: string) => {
+
             if (isSameNode(p.node, curSelection.node)) {
-                return 'selectable-item selection'
+                return {class: 'selectable-item selection', color: 'orange'}
             }
             if (p.isActive) {
-                return 'selectable-item active-' + type + '-node'
+                const graphIdx = curStartToken - (tokensTop.length - nodeStyleMap.length);
+                const nodeKey = `${p.node.cell?.layer}_${p.node.cell?.token}`;
+                // console.log(nodeStyleMap[graphIdx].get(nodeKey))
+                const [nodeColor, _] = nodeStyleMap[graphIdx].get(nodeKey) || ['yellowgreen', 0];
+                // const nodeStyle = 'yellowgreen';
+                return {class: 'selectable-item active-' + type + '-node', color: nodeColor}
             }
-            return 'selectable-item inactive-node'
+            return {class: 'selectable-item inactive-node', color: 'lightgray'}
         }
+
+        const handleMouseOver = (event: MouseEvent, node: NodeProps) => {
+            const tooltip = tooltipRef.current;
+            if (tooltip && node.isActive) {
+                const graphIdx = curStartToken - (tokensTop.length - nodeStyleMap.length);
+                const nodeKey = `${node.node.cell?.layer}_${node.node.cell?.token}`;
+                const [_, nodeValue] = nodeStyleMap[graphIdx].get(nodeKey) || ['yellowgreen', 0];
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${event.pageX + 10}px`;
+                tooltip.style.top = `${event.pageY + 10}px`;
+                tooltip.innerHTML = `${nodeValue.toFixed(4)}`;
+            }
+        };
+
+        const handleMouseOut = () => {
+            const tooltip = tooltipRef.current;
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        };
 
 
         const svg = d3.select<SVGSVGElement, unknown>(svgRef.current as SVGSVGElement);
@@ -452,13 +539,18 @@ const ContributionGraph = ({ args }: ComponentProps) => {
                     || p.node.item === CellItem.AfterFfn
             })
             .append('circle')
-            .attr('class', (p) => getNodeStyle(p, 'residual'))
+            .attr('class', (p) => getNodeStyle(p, 'residual').class)
             .attr('cx', (p) => p.pos.x)
             .attr('cy', (p) => p.pos.y)
             .attr('r', renderParams.attnSize / 2)
+            .style('fill', (p) => getNodeStyle(p, 'residual').color)
             .on('click', (event: PointerEvent, p) => {
                 handleRepresentationClick(p.node)
             })
+            .on('mouseover', (event: MouseEvent, p) => {
+                handleMouseOver(event, p);
+            })
+            .on('mouseout', handleMouseOut);
 
         svgGroup
             .selectAll('ffn')
@@ -466,11 +558,12 @@ const ContributionGraph = ({ args }: ComponentProps) => {
             .enter()
             .filter((p) => p.node.item === CellItem.Ffn && p.isActive)
             .append('rect')
-            .attr('class', (p) => getNodeStyle(p, 'ffn'))
+            .attr('class', (p) => getNodeStyle(p, 'ffn').class)
             .attr('x', (p) => p.pos.x - renderParams.ffnSize / 2)
             .attr('y', (p) => p.pos.y - renderParams.ffnSize / 2)
             .attr('width', renderParams.ffnSize)
             .attr('height', renderParams.ffnSize)
+            // .style('fill', (p) => getNodeStyle(p, 'residual').color)
             .on('click', (event: PointerEvent, p) => {
                 handleRepresentationClick(p.node)
             })
@@ -546,14 +639,27 @@ const ContributionGraph = ({ args }: ComponentProps) => {
         nLayers,
         nTokens,
         xScale,
-        yScale
+        yScale,
+        nodeStyleMap
     ])
 
 
-
-    return <svg ref={svgRef} width={totalW} height={totalH} style={{ border: '3px solid black' }}></svg>
+    // return <svg ref={svgRef} width={totalW} height={totalH} style={{ border: '3px solid black' }}></svg>
+    return (
+        <div>
+            <svg ref={svgRef} width={totalW} height={totalH} style={{border: '3px solid black'}}></svg>
+            <div ref={tooltipRef} style={{
+                position: 'absolute',
+                display: 'none',
+                backgroundColor: 'white',
+                border: '1px solid black',
+                padding: '5px',
+                pointerEvents: 'none'
+            }}></div>
+            <button onClick={downloadImage}>Download as PNG</button>
+        </div>
+    );
 }
-
 
 
 export default withStreamlitConnection(ContributionGraph)

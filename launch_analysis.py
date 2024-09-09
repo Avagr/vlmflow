@@ -1,17 +1,17 @@
 import concurrent.futures
+from functools import partial
 import os
 from pathlib import Path
 import pickle
-from functools import partial
 
-from graph_tool import Graph
+from graph_tool import Graph  # noqa
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import pandas as pd
 from tqdm.auto import tqdm
 from transformers import AutoProcessor
 
-from flow.analysis import modality_ratio
+from flow.analysis import ModalityRatio, ModalityCentrality, BaseMetric
 from flow.graphs import build_graph_from_contributions
 from utils.misc import set_random_seed, get_image_token_boundaries
 
@@ -45,17 +45,19 @@ def run(cfg: DictConfig):
             generated_token_ids = row.generated_ids[len(tokenized_prompt):]
             generated_len = len(generated_token_ids)
 
-            build_graph_for = partial(build_graph_from_contributions, attn=attn, attn_res=attn_res, ffn=ffn, ffn_res=ffn_res,
+            build_graph_for = partial(build_graph_from_contributions, attn=attn, attn_res=attn_res, ffn=ffn,
+                                      ffn_res=ffn_res,
                                       img_begin=img_begin, img_end=img_end)
 
-
-            results = list(executor.map(build_graph_for,
-                                        [cfg.graph_threshold] * generated_len,
-                                        range(-generated_len, 0)
-                           ))
+            results = list(
+                executor.map(
+                    build_graph_for,
+                    [cfg.graph_threshold] * generated_len,
+                    range(-generated_len, 0)
+                )
+            )
 
             full_graphs, simple_graphs, node_layers = [], [], []
-
 
             for full_graph, simple_graph, node_layer in results:
                 full_graphs.append(full_graph)
@@ -66,15 +68,22 @@ def run(cfg: DictConfig):
             simple_graph_dict[idx] = simple_graphs
             node_layers_dict[idx] = node_layers
 
-    simple_graph_metrics = [modality_ratio]  # TODO make configurable
+    simple_graph_metrics: list[BaseMetric] = [ModalityRatio(), ModalityCentrality()]  # TODO make configurable
     for metric in simple_graph_metrics:
-        metric_results = []
+        metric_results = {lab: [] for lab in metric.labels}
         for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
-                             desc=f"Computing {metric.__name__}"):
+                             desc=f"Computing {metric.name}"):
+            sample_results = {lab: [] for lab in metric.labels}
             simple_graphs: list[Graph] = simple_graph_dict[idx]
             node_layers = node_layers_dict[idx]
-            metric_results.append([metric(graph, node_layer) for graph, node_layer in zip(simple_graphs, node_layers)])
-        pickle.dump(metric_results, open(base_dir / f"{metric.__name__}_results.pkl", "wb"))
+            for graph, node_layer in zip(simple_graphs, node_layers):
+                arrs = metric(graph, node_layer)
+                for lab, arr in zip(metric.labels, arrs):
+                    sample_results[lab].append(arr)
+            for lab in metric.labels:
+                metric_results[lab].append(sample_results[lab])
+
+        pickle.dump(metric_results, open(base_dir / f"{metric.name}_results.pkl", "wb"))
 
     pickle.dump(full_graph_dict, open(base_dir / "full_graph_dict.pkl", "wb"))
     pickle.dump(simple_graph_dict, open(base_dir / "simple_graph_dict.pkl", "wb"))

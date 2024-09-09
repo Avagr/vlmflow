@@ -33,6 +33,7 @@
 }
 
 .active-residual-node {
+    /*fill: blue; */
     fill: yellowgreen;
 }
 
@@ -49,16 +50,18 @@
 }
 
 .inactive-node {
-    fill: lightgray;
-    stroke-width: 0.5px;
+    fill: #e6e6e6;
+    stroke-width: 0.2px;
+    stroke-opacity: 0.5;
 }
 
 .inactive-node:hover {
-    fill: gray;
+    fill: #e6e6e6;
 }
 
 .selectable-edge {
     cursor: pointer;
+    /*fill: slateblue;*/
 }
 
 .token-selector {

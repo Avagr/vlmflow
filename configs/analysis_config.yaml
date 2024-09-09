@@ -11,8 +11,6 @@ disable_tqdm: false
 resume_wandb_id: null
 
 results_dir: /home/projects/shimon/agroskin/projects/vlmflow/results
-run_dir: Unlabeled_COCO/llava_tensors_300_2024_09_01-21_04_28   # llava_test_2024_09_01-20_44_23 llava_tensors_300_2024_09_01-21_04_28
+run_dir: Unlabeled_COCO/llava_test_2024_09_01-20_44_23   # llava_test_2024_09_01-20_44_23 llava_tensors_300_2024_09_04-22_18_05
 
 graph_threshold: 0.02
-
-

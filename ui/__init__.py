@@ -50,13 +50,17 @@ def contribution_graph(
     tokens: List[str],
     graphs_edge_lists,
     key: str,
+    node_style_map: Optional[dict[str, str]],
 ) -> Optional[int]:
     """Create a new instance of contribution graph.
 
     Returns selected graph node or None if nothing was selected.
     """
 
-    assert len(tokens) == len(graphs_edge_lists) + 1
+    if node_style_map is None:
+        node_style_map = [["I am a", "dummy map"] for _ in range(graphs_edge_lists)]
+
+    # assert len(tokens) == len(graphs_edge_lists) + 1
 
     result = _component_func(
         component="graph",
@@ -66,6 +70,7 @@ def contribution_graph(
         edges_per_token=graphs_edge_lists,
         default="Default",
         key=key,
+        node_style_map=node_style_map
     )
 
     # check that result is a number
