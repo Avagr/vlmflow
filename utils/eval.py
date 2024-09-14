@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
 import torch
-import wandb
 from tqdm.auto import tqdm
+import wandb
 
 from datasets.base import BaseDataset, EvalWrapper
 
@@ -27,7 +27,8 @@ class EvaluationResult:
     texts: list[str]
     predictions: torch.Tensor | list[str] | list[tuple]
     true_labels: torch.Tensor | list[str] | list[tuple]
-    scores: dict[str, list]
+    generated_ids: list[list[int]]
+    scores: dict[str, list] = None
 
     def matches(self):
         matches = []
@@ -53,14 +54,15 @@ class EvaluationResult:
     def to_table(self, dataset: BaseDataset) -> wandb.Table:
         matches = self.matches()
         table_data = [
-            dataset.table_repr(i, self.predictions[i], img_as_object=False) + [
-                self.texts[i]] + [
-                self.scores[k][i] for k in sorted(self.scores.keys())] + [
-                matches[i]]
+            dataset.table_repr(i, self.predictions[i], img_as_object=False)
+            + [self.texts[i]]
+            + [self.generated_ids[i]]
+            + [matches[i]]
+            + [self.scores[k][i] for k in sorted(self.scores.keys())]
             for i in self.dataset_ids]
         return wandb.Table(
             data=table_data,
-            columns=dataset.table_columns + ['prompt'] + sorted(self.scores.keys()) + ['match'],
+            columns=dataset.table_columns + ['prompt', 'generated_ids', 'match'] + sorted(self.scores.keys()),
             allow_mixed_types=True
         )
 
@@ -70,12 +72,14 @@ def merge_results(results, callbacks=None):
     texts = []
     predictions = []
     labels = []
+    generated_ids = []
     scores = {k: [] for k in results[0].scores.keys()}
     for res in results:
         dataset_ids.extend(res.dataset_ids)
         texts.extend(res.texts)
         predictions.extend(res.predictions)
         labels.extend(res.true_labels)
+        generated_ids.extend(res.generated_ids)
         for k, v in res.scores.items():
             if k not in scores:
                 raise ValueError(f"All additional scores should be the same across results, not true for key {k}")
@@ -103,6 +107,7 @@ def merge_results(results, callbacks=None):
         texts=texts,
         predictions=predictions,
         true_labels=labels,
+        generated_ids=generated_ids,
         scores=scores
     )
 

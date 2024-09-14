@@ -24,7 +24,8 @@ class GenerativeWrapper(nn.Module):
         self.num_image_patches = 576
         self.output_attentions = output_attentions
 
-    def generate(self, images: list[torch.Tensor], texts: list[str], config: GenerationConfig) -> (list[str], list[list[int]]):
+    def generate(self, images: list[torch.Tensor], texts: list[str], config: GenerationConfig) -> (
+    list[str], list[list[int]]):
         inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,
                                                                                                  dtype=self.dtype)
         generated_ids = self.model.underlying_model().generate(**inputs, generation_config=config)
@@ -38,12 +39,14 @@ class GenerativeWrapper(nn.Module):
         return self.processor.batch_decode(generated_ids), generated_ids.tolist()
 
     def forward(self, images: list[torch.Tensor], texts: list[str], **kwargs) -> torch.Tensor:
+
         inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,
                                                                                                  dtype=self.dtype)
         return self.model(**inputs, output_attentions=self.output_attentions, **kwargs, use_cache=False)
 
     def score_single_tokens(self, images: list[torch.Tensor], texts: list[str],
-                            candidates: list[str]) -> (torch.Tensor, dict[str, torch.Tensor]):
+                            candidates: list[str]) -> (torch.Tensor, list[list[int]]):
+
         labels = self.processor.tokenizer(candidates, add_special_tokens=False, return_tensors='pt',
                                           padding=False).input_ids.view(-1).to(device=self.device)
         if labels.shape[0] != len(candidates):
@@ -53,7 +56,11 @@ class GenerativeWrapper(nn.Module):
             dtype=self.dtype)
         logits = torch.softmax(self.model(**inputs, output_attentions=self.output_attentions, use_cache=False).logits,
                                dim=-1)
-        return logits[:, -1, labels], {'max_tokens': self.processor.tokenizer.batch_decode(logits[:, -1].argmax(-1))}
+        max_tokens =  self.processor.tokenizer.batch_decode(logits[:, -1].argmax(-1))
+        generated_ids = inputs.input_ids.tolist()
+        for sample, token in zip(generated_ids, max_tokens):
+            sample.append(token)
+        return logits[:, -1, labels], generated_ids
 
     def score_text(self, images: list[torch.Tensor], texts: list[str]) -> (torch.Tensor, dict[str, torch.Tensor]):
         inputs = self.processor(text=texts, images=images, return_tensors='pt', truncation=False, padding=True).to(

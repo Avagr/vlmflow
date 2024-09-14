@@ -71,4 +71,4 @@ class UnlabeledCocoEval(EvalWrapper):
         generated_text, generated_ids = model.generate(images, texts, self.generation_config)
         for callback in self.callbacks:
             callback(model, idx, generated_text)
-        return EvaluationResult(batch_size, idx.tolist(), texts, generated_text, generated_text, {'generated_ids': generated_ids})
+        return EvaluationResult(batch_size, idx.tolist(), texts, generated_text, generated_text, generated_ids)

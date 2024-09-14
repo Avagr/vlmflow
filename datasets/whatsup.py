@@ -81,32 +81,22 @@ class WhatsUpEval:
         idx, images, options, answers = batch
         batch_size = idx.shape[0]
         match self.eval_method:
-            case "ppl":
-                texts = [f"{self.pre_prompt}{opt[i]}{self.post_prompt}" for opt in options for i in range(4)]
-                images = [img for img in images for _ in range(4)]
-                scores, metrics = model.score_text(images, texts).view(batch_size, 4)
-                predictions = scores.argmin(-1)
+            # case "ppl":
+            #     texts = [f"{self.pre_prompt}{opt[i]}{self.post_prompt}" for opt in options for i in range(4)]
+            #     images = [img for img in images for _ in range(4)]
+            #     scores, metrics = model.score_text(images, texts).view(batch_size, 4)
+            #     predictions = scores.argmin(-1)
 
             case "abcd":
                 texts = [(f"{self.pre_prompt}"
                           f"A. {opt[0]}\nB. {opt[1]}\nC. {opt[2]}\nD. {opt[3]}\n"
                           f"{self.post_prompt}") for opt in options]
-                scores, metrics = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
+                scores, generated_ids = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
                 predictions = scores.argmax(-1)
-
-            case "abcd_top":
-                texts = [(f"{self.pre_prompt}"
-                          f"A. {opt[0]}\nB. {opt[1]}\nC. {opt[2]}\nD. {opt[3]}\n"
-                          f"{self.post_prompt}") for opt in options]
-                scores, metrics = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
-                predictions = scores.argmax(-1)
-                for i, tok in enumerate(metrics['max_tokens']):
-                    if tok not in ['A', 'B', 'C', 'D']:
-                        predictions[i] = -1
             case _:
                 raise ValueError(f"Unsupported evaluation method {self.eval_method}")
         if self.callbacks is not None:
             for callback in self.callbacks:
                 callback(model, idx, texts, answers, predictions, scores)
 
-        return EvaluationResult(batch_size, idx.tolist(), texts, predictions.cpu(), answers, metrics)
+        return EvaluationResult(batch_size, idx.tolist(), texts, predictions.cpu(), answers, generated_ids)

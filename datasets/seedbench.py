@@ -109,18 +109,18 @@ class SEEDBenchSingleImageEval(EvalWrapper):
         idx, images, questions, choices, answers = batch
         batch_size = idx.shape[0]
         match self.eval_method:
-            case "ppl":
-                texts = [f"{self.pre_prompt}{q}{self.mid_prompt}{cand[c]}{self.post_prompt}" for q, cand in
-                         zip(questions, choices) for c in range(4)]
-                images = [img for img in images for _ in range(4)]
-                scores, metrics = model.score_text(images, texts).view(batch_size, 4)
-                predictions = scores.argmin(-1).cpu()
+            # case "ppl":
+            #     texts = [f"{self.pre_prompt}{q}{self.mid_prompt}{cand[c]}{self.post_prompt}" for q, cand in
+            #              zip(questions, choices) for c in range(4)]
+            #     images = [img for img in images for _ in range(4)]
+            #     scores, metrics = model.score_text(images, texts).view(batch_size, 4)
+            #     predictions = scores.argmin(-1).cpu()
 
             case "abcd":
                 texts = [(f"{self.pre_prompt}{q}{self.mid_prompt}"
                           f"A. {cand[0]}\nB. {cand[1]}\nC. {cand[2]}\nD. {cand[3]}\n"
                           f"{self.post_prompt}") for q, cand in zip(questions, choices)]
-                scores, metrics = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
+                scores, generated_ids = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
                 predictions = scores.argmax(-1).cpu()
             case _:
                 raise ValueError(f"Unsupported evaluation method {self.eval_method}")
@@ -128,4 +128,4 @@ class SEEDBenchSingleImageEval(EvalWrapper):
         for callback in self.callbacks:
             callback(model, idx, texts, answers, predictions, scores)
 
-        return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, metrics)
+        return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, generated_ids)
