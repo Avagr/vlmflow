@@ -2,6 +2,7 @@ from abc import abstractmethod, ABC
 
 from graph_tool import Graph
 from graph_tool.search import dfs_iterator
+from graph_tool.spectral import adjacency
 import numpy as np
 
 
@@ -44,6 +45,7 @@ class ModalityRatio(BaseMetric):
 
         return [graph.vp.txt_contrib.a, graph.vp.img_contrib.a]
 
+
 class ModalityCentrality(BaseMetric):
     name = "modality_centrality"
     labels = ["txt_centrality", "img_centrality"]
@@ -68,3 +70,29 @@ class ModalityCentrality(BaseMetric):
                 graph.vp.img_centrality.a[list(img_set)] += 1
 
         return [graph.vp.txt_centrality.a, graph.vp.img_centrality.a]
+
+
+class ClusteringCoefficient(BaseMetric):
+    name = "clustering_coefficient"
+    labels = ["local_clustering_coefficient", "global_clustering_coefficient"]
+
+    @staticmethod
+    def __call__(graph: Graph, node_layers: dict[int, list[int]], density_thresh: int = 1) -> list[np.ndarray]:
+        graph.vp.local_clustering = graph.new_vertex_property("double", val=np.nan)
+        adj = adjacency(graph).astype(np.short).T
+        num_paths = (adj @ adj).toarray()
+        global_coeff = (num_paths > density_thresh).sum() / (num_paths > 0).sum()
+        for v in graph.iter_vertices():
+            if 0 < graph.vp.layer_num[v] < len(node_layers) - 1:
+                in_neigh = graph.get_in_neighbours(v, vprops=[graph.vp.token_num])
+                out_neigh = graph.get_out_neighbours(v, vprops=[graph.vp.token_num])
+                num_possible_paths = in_neigh.shape[0] * out_neigh.shape[0]
+                if np.isin(in_neigh[:, 1], out_neigh[:, 1], assume_unique=True).any():
+                    num_possible_paths -= 1
+                if num_possible_paths == 0:
+                    graph.vp.local_clustering[v] = 0
+                    continue
+                in_out_paths = num_paths[in_neigh[:, 0, None], out_neigh[:, 0]]
+                graph.vp.local_clustering[v] = (in_out_paths > density_thresh).sum() / num_possible_paths
+
+        return [graph.vp.local_clustering.a, np.array(global_coeff)]
