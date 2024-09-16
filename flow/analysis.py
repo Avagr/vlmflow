@@ -1,27 +1,30 @@
 from abc import abstractmethod, ABC
+from numbers import Number
 
-from graph_tool import Graph
+from graph_tool import Graph, edge_endpoint_property
 from graph_tool.search import dfs_iterator
 from graph_tool.spectral import adjacency
 import numpy as np
 
 
-class BaseMetric(ABC):
-    labels = []
+EPS = 1e-5
+
+class BaseVertexMetric(ABC):
+    labels: list[str] = []
     name = "base"
 
     @staticmethod
     @abstractmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]]) -> list[np.ndarray]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]]) -> tuple[Graph, list[np.ndarray]]:
         pass
 
 
-class ModalityRatio(BaseMetric):
-    name = "modality_ratio"
+class ModalityContribution(BaseVertexMetric):
+    name = "modality_contribution"
     labels = ["txt_contrib", "img_contrib"]
 
     @staticmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]]) -> list[np.ndarray]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]])  -> tuple[Graph, list[np.ndarray]]:
         graph.vp.txt_contrib = graph.new_vertex_property("float", val=0.)
         graph.vp.img_contrib = graph.new_vertex_property("float", val=0.)
 
@@ -43,15 +46,15 @@ class ModalityRatio(BaseMetric):
                 graph.vp.txt_contrib[v] = txt_sum / w_sum
                 graph.vp.img_contrib[v] = img_sum / w_sum
 
-        return [graph.vp.txt_contrib.a, graph.vp.img_contrib.a]
+        return graph, [graph.vp.txt_contrib.a, graph.vp.img_contrib.a]
 
 
-class ModalityCentrality(BaseMetric):
+class ModalityCentrality(BaseVertexMetric):
     name = "modality_centrality"
     labels = ["txt_centrality", "img_centrality"]
 
     @staticmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]]) -> list[np.ndarray]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]])  -> tuple[Graph, list[np.ndarray]]:
         graph.vp.img_centrality = graph.new_vertex_property("short", val=0)
         graph.vp.txt_centrality = graph.new_vertex_property("short", val=0)
 
@@ -69,15 +72,16 @@ class ModalityCentrality(BaseMetric):
                     img_set.add(e)
                 graph.vp.img_centrality.a[list(img_set)] += 1
 
-        return [graph.vp.txt_centrality.a, graph.vp.img_centrality.a]
+        return graph, [graph.vp.txt_centrality.a, graph.vp.img_centrality.a]
 
 
-class ClusteringCoefficient(BaseMetric):
+class ClusteringCoefficient(BaseVertexMetric):
     name = "clustering_coefficient"
     labels = ["local_clustering_coefficient", "global_clustering_coefficient"]
 
     @staticmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]], density_thresh: int = 1) -> list[np.ndarray]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]],
+                 density_thresh: int = 1)  -> tuple[Graph, list[np.ndarray]]:
         graph.vp.local_clustering = graph.new_vertex_property("double", val=np.nan)
         adj = adjacency(graph).astype(np.short).T
         num_paths = (adj @ adj).toarray()
@@ -95,4 +99,40 @@ class ClusteringCoefficient(BaseMetric):
                 in_out_paths = num_paths[in_neigh[:, 0, None], out_neigh[:, 0]]
                 graph.vp.local_clustering[v] = (in_out_paths > density_thresh).sum() / num_possible_paths
 
-        return [graph.vp.local_clustering.a, np.array(global_coeff)]
+        return graph, [graph.vp.local_clustering.a, np.array(global_coeff)]
+
+
+class BaseGraphMetric(ABC):
+    labels = []
+    name = "base"
+
+    @staticmethod
+    @abstractmethod
+    def __call__(graph: Graph) -> list[Number]:
+        pass
+
+
+class GraphDensity(BaseGraphMetric):
+    name = "graph_density"
+    labels = ["density"]
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[Number]:
+        nodes = graph.get_vertices(vprops=[graph.vp.layer_num, graph.vp.token_num])
+        layer_nums = nodes[:, 1]
+        token_nums = nodes[:, 2]
+        mask = (layer_nums[:, None] == (layer_nums - 1)) & (token_nums[:, None] <= token_nums)
+        return [(graph.num_edges() / mask.sum()).item()]
+
+
+class NumCrossModalEdges(BaseGraphMetric):
+    name = "num_cross_modal_edges"
+    labels = ["num_cross_modal_edges"]
+
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[Number]:
+        source_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='source').a
+        target_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='target').a
+
+        return [((source_mod >= 1 - EPS) & (target_mod < 1 - EPS)).sum().item()]

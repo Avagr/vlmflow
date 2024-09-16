@@ -1,19 +1,22 @@
 import concurrent.futures
 from functools import partial
+from numbers import Number
 import os
 from pathlib import Path
 import pickle
+import json
 
 from graph_tool import Graph  # noqa
 import hydra
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 import pandas as pd
 from tqdm.auto import tqdm
 from transformers import AutoProcessor
 
-from flow.analysis import ModalityRatio, ModalityCentrality, BaseMetric
 from flow.graphs import build_graph_from_contributions
 from utils.misc import set_random_seed, get_image_token_boundaries
+from utils.setup import create_metrics
 
 
 @hydra.main(config_path="configs", config_name="analysis_config", version_base=None)
@@ -30,8 +33,10 @@ def run(cfg: DictConfig):
     processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+    vertex_metrics, graph_metrics = create_metrics(cfg)
+
     full_graph_dict, simple_graph_dict, node_layers_dict = {}, {}, {}
-    with concurrent.futures.ProcessPoolExecutor(max_workers=16) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=cfg.max_workers) as executor:
         for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
                              desc="Building graphs"):
 
@@ -68,26 +73,70 @@ def run(cfg: DictConfig):
             simple_graph_dict[idx] = simple_graphs
             node_layers_dict[idx] = node_layers
 
-    simple_graph_metrics: list[BaseMetric] = [ModalityRatio(), ModalityCentrality()]  # TODO make configurable
-    for metric in simple_graph_metrics:
-        metric_results = {lab: [] for lab in metric.labels}
-        for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
-                             desc=f"Computing {metric.name}"):
-            sample_results = {lab: [] for lab in metric.labels}
-            simple_graphs: list[Graph] = simple_graph_dict[idx]
-            node_layers = node_layers_dict[idx]
-            for graph, node_layer in zip(simple_graphs, node_layers):
-                arrs = metric(graph, node_layer)
-                for lab, arr in zip(metric.labels, arrs):
-                    sample_results[lab].append(arr)
+
+        for metric in vertex_metrics:
+            vertex_metric_results: dict[str, dict[int, list[np.ndarray]]] = {lab: {} for lab in metric.labels}
+            for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
+                                 desc=f"Computing {metric.name}"): #type: int, pd.Series
+
+                for lab in metric.labels:
+                    vertex_metric_results[lab][idx] = []
+
+                simple_graphs: list[Graph] = simple_graph_dict[idx]
+                node_layers = node_layers_dict[idx]
+
+                results = list(
+                    executor.map(
+                        metric,
+                        simple_graphs,
+                        node_layers
+                    )
+                )
+                for i, (graph, result_arrays) in enumerate(results):
+                    simple_graphs[i] = graph
+                    for lab, arr in zip(metric.labels, result_arrays):
+                        vertex_metric_results[lab][idx].append(arr)
+
+            pickle.dump(vertex_metric_results, open(base_dir / f"{metric.name}_results.pkl", "wb"))
+
+        graph_metrics_results: dict[str, dict[int, list[Number]]] = {}
+        for metric in graph_metrics:
             for lab in metric.labels:
-                metric_results[lab].append(sample_results[lab])
+                graph_metrics_results[lab] = {}
+            for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
+                                 desc=f"Computing {metric.name}"):  # type: int, pd.Series
+                simple_graphs: list[Graph] = simple_graph_dict[idx]
 
-        pickle.dump(metric_results, open(base_dir / f"{metric.name}_results.pkl", "wb"))
+                graph_metrics_results[lab][idx] = []
 
-    pickle.dump(full_graph_dict, open(base_dir / "full_graph_dict.pkl", "wb"))
-    pickle.dump(simple_graph_dict, open(base_dir / "simple_graph_dict.pkl", "wb"))
-    pickle.dump(node_layers_dict, open(base_dir / "node_layers_dict.pkl", "wb"))
+                results = list(
+                    executor.map(
+                        metric,
+                        simple_graphs
+                    )
+                )
+                for result_arrays in results:
+                    for lab, val in zip(metric.labels, result_arrays):
+                        graph_metrics_results[lab][idx].append(val)
+
+        pickle.dump(graph_metrics_results, open(base_dir / "graph_metrics_results.pkl", "wb"))
+
+    # Save full graphs and simple graphs using the gt format
+    simple_graph_dir = base_dir / "simple_graphs"
+    simple_graph_dir.mkdir(parents=True, exist_ok=True)
+    full_graph_dir = base_dir / "full_graphs"
+    full_graph_dir.mkdir(parents=True, exist_ok=True)
+    for idx, simple_graphs in tqdm(simple_graph_dict.items(), desc="Saving simple graphs"):
+        for i, graph in enumerate(simple_graphs):
+            graph.save(str((simple_graph_dir / f"{idx}_{i}.gt").resolve()))
+
+    for idx, full_graphs in tqdm(full_graph_dict.items(), desc="Saving full graphs"):
+        for i, graph in enumerate(full_graphs):
+            graph.save(str((full_graph_dir / f"{idx}_{i}.gt").resolve()))
+
+    # pickle.dump(full_graph_dict, open(base_dir / "full_graph_dict.pkl", "wb"))
+    # pickle.dump(simple_graph_dict, open(base_dir / "simple_graph_dict.pkl", "wb"))
+    pickle.dump(node_layers_dict, open(base_dir / "node_layers_dict.json", "wb"))
 
 
 if __name__ == '__main__':

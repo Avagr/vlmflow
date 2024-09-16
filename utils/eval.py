@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 from tqdm.auto import tqdm
@@ -28,7 +28,7 @@ class EvaluationResult:
     predictions: torch.Tensor | list[str] | list[tuple]
     true_labels: torch.Tensor | list[str] | list[tuple]
     generated_ids: list[list[int]]
-    scores: dict[str, list] = None
+    scores: dict[str, list] = field(default_factory=dict)
 
     def matches(self):
         matches = []

@@ -22,7 +22,7 @@ need_grad: false
 mixed_precision: false
 use_tf32: false
 
-disable_wandb: true
+disable_wandb: false
 show_tqdm: true
 resume_wandb_id: null
 detect_anomalies: false
@@ -32,7 +32,7 @@ results_path: /home/projects/shimon/agroskin/projects/vlmflow/results
 model_size: ???
 
 save_full_graphs: true
-head_batch_size: 4
+head_batch_size: 2
 renormalization_threshold: null
 sparsification_threshold: null
 

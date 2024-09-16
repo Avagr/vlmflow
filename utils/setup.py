@@ -9,6 +9,7 @@ from datasets.coco import UnlabeledCoco, UnlabeledCocoCollate, UnlabeledCocoEval
 from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
 from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
 from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate
+from flow.analysis import *
 from models.transparent_models import TransparentLlava
 from models.wrappers import GenerativeWrapper
 from utils.callbacks import GraphTensorCallback, LogitLensCallback
@@ -93,3 +94,21 @@ def create_callbacks(cfg, eval_wrapper: EvalWrapper, run_folder: Path, model: Ge
                                      tokenizer=model.processor.tokenizer)
         eval_wrapper.add_callback(callback)
     return eval_wrapper.callbacks
+
+
+def create_metrics(cfg) -> tuple[list[BaseVertexMetric], list[BaseGraphMetric]]:
+    vertex_metrics = []
+    if cfg.modality_contribution:
+        vertex_metrics.append(ModalityContribution())
+    if cfg.modality_centrality:
+        vertex_metrics.append(ModalityCentrality())
+    if cfg.clustering_coefficient:
+        vertex_metrics.append(ClusteringCoefficient())
+
+    graph_metrics = []
+    if cfg.graph_density:
+        graph_metrics.append(GraphDensity())
+    if cfg.num_cross_modal_edges:
+        graph_metrics.append(NumCrossModalEdges())
+
+    return vertex_metrics, graph_metrics

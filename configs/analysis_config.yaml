@@ -9,8 +9,18 @@ seed: 57
 disable_wandb: true
 disable_tqdm: false
 resume_wandb_id: null
+max_workers: 16
 
 results_dir: /home/projects/shimon/agroskin/projects/vlmflow/results
-run_dir: Unlabeled_COCO/llava_test_2024_09_01-20_44_23   # llava_test_2024_09_01-20_44_23 llava_tensors_300_2024_09_04-22_18_05
+run_dir: Unlabeled_COCO/llava_2000_2024_09_15-01_57_15/
 
 graph_threshold: 0.02
+
+# Vertex metrics
+modality_contribution: true
+modality_centrality: true
+clustering_coefficient: true
+
+# Graph metrics
+graph_density: true
+num_cross_modal_edges: true

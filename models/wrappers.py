@@ -56,7 +56,7 @@ class GenerativeWrapper(nn.Module):
             dtype=self.dtype)
         logits = torch.softmax(self.model(**inputs, output_attentions=self.output_attentions, use_cache=False).logits,
                                dim=-1)
-        max_tokens =  self.processor.tokenizer.batch_decode(logits[:, -1].argmax(-1))
+        max_tokens =  logits[:, -1].argmax(-1).tolist()
         generated_ids = inputs.input_ids.tolist()
         for sample, token in zip(generated_ids, max_tokens):
             sample.append(token)
