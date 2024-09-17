@@ -136,7 +136,7 @@ def run(cfg: DictConfig):
 
     # pickle.dump(full_graph_dict, open(base_dir / "full_graph_dict.pkl", "wb"))
     # pickle.dump(simple_graph_dict, open(base_dir / "simple_graph_dict.pkl", "wb"))
-    pickle.dump(node_layers_dict, open(base_dir / "node_layers_dict.json", "wb"))
+    pickle.dump(node_layers_dict, open(base_dir / "node_layers_dict.pkl", "wb"))
 
 
 if __name__ == '__main__':

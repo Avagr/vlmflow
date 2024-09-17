@@ -51,13 +51,13 @@ class SEEDBenchSingleImage(BaseDataset):
     def table_repr(self, idx, prediction, img_as_object=True):
         question = self.questions[idx]
         if question['data_source'] == 'cc3m':
-            img_root_dir = self.root_dir / 'cc3m-images'
+            img_path = f'cc3m-images/{question['data_id']}'
         else:
-            img_root_dir = self.root_dir
+            img_path = question['data_id']
         choices = [question[f"choice_{i}"] for i in "abcd"]
         return [
             idx,
-            wandb.Image(str((img_root_dir / question['data_id']).resolve())) if img_as_object else question['data_id'],
+            wandb.Image(str((self.root_dir / img_path).resolve())) if img_as_object else img_path,
             f"{chr(prediction + ord('A'))}: {choices[prediction]}",
             f"{question['answer']}: {choices[self.answer_map[question['answer'].strip()]]}"
         ]

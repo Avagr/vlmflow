@@ -1,11 +1,10 @@
 import pickle
-from typing import LiteralString, Literal
+from typing import Literal
 
-from graph_tool import Graph, PropertyMap  # noqa
+from graph_tool import Graph, PropertyMap, load_graph  # noqa
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 
 # An array of simple and distinct colors (names) for the nodes
 
@@ -17,17 +16,37 @@ colors = [
 ]
 
 
-
 @st.cache_resource
-def read_results(path: str):
+def read_metric_results(path: str):
     return (
         pd.read_parquet(f"{path}/results_table.parquet"),
-        pickle.load(open(f"{path}/full_graph_dict.pkl", "rb")),
-        pickle.load(open(f"{path}/simple_graph_dict.pkl", "rb")),
         pickle.load(open(f"{path}/node_layers_dict.pkl", "rb")),
-        pickle.load(open(f"{path}/modality_ratio_results.pkl", "rb"))['img_contrib'],
-        pickle.load(open(f"{path}/modality_centrality_results.pkl", "rb"))
+        pickle.load(open(f"{path}/modality_centrality_results.pkl", "rb")),
+        pickle.load(open(f"{path}/graph_metrics_results.pkl", "rb")),
     )
+
+
+@st.cache_resource
+def read_graphs(path: str, idx, num_graphs) -> tuple[list[Graph], list[Graph]]:
+    simple_graphs = []
+    full_graphs = []
+    for i in range(num_graphs):
+        simple_graphs.append(load_graph(f"{path}/simple_graphs/{idx}_{i}.gt"))
+        full_graphs.append(load_graph(f"{path}/full_graphs/{idx}_{i}.gt"))
+    return simple_graphs, full_graphs
+
+
+@st.cache_data
+def get_image_dir(run_dir):
+    image_paths = {
+        "WhatsUp_": "/home/projects/shimon/agroskin/datasets/whatsup",
+        "SEED": "/home/projects/shimon/Collaboration/seedbench/SEED-Bench-2-image",
+        "COCO": "/home/projects/bagon/shared/coco/unlabeled2017"
+    }
+    for k, path in image_paths.items():
+        if k in run_dir:
+            return path
+    raise ValueError(f"Dataset from run {run_dir} is not supported")
 
 
 @st.cache_resource
@@ -40,8 +59,9 @@ def process_centrality(centrality):
     txt_only = []
     img_only = []
 
-    for i, txt_sample, img_sample in zip(range(len(centrality['txt_centrality'])), centrality['txt_centrality'],
-                                         centrality['img_centrality']):
+    for i in range(len(centrality['txt_centrality'])):
+        txt_sample = centrality['txt_centrality'][i]
+        img_sample = centrality['img_centrality'][i]
         txt_centrality.append([])
         img_centrality.append([])
         total_centrality.append([])
@@ -125,7 +145,8 @@ def get_edge_list(graph: Graph):
 
 
 @st.cache_resource(hash_funcs={list[Graph]: id, list[PropertyMap | np.ndarray]: id})
-def create_node_style_map(graphs: list[Graph], metrics: list[PropertyMap | np.ndarray], mode: Literal["value", "cluster"]):
+def create_node_style_map(graphs: list[Graph], metrics: list[PropertyMap | np.ndarray],
+                          mode: Literal["value", "cluster"]):
     style_map: list[list] = []
     match mode:
         case "value":

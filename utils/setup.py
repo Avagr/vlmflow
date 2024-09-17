@@ -102,13 +102,15 @@ def create_metrics(cfg) -> tuple[list[BaseVertexMetric], list[BaseGraphMetric]]:
         vertex_metrics.append(ModalityContribution())
     if cfg.modality_centrality:
         vertex_metrics.append(ModalityCentrality())
-    if cfg.clustering_coefficient:
-        vertex_metrics.append(ClusteringCoefficient())
+    if cfg.local_clustering_coefficient:
+        vertex_metrics.append(LocalClusteringCoefficient())
 
     graph_metrics = []
     if cfg.graph_density:
         graph_metrics.append(GraphDensity())
     if cfg.num_cross_modal_edges:
         graph_metrics.append(NumCrossModalEdges())
+    if cfg.global_clustering_coefficient:
+        graph_metrics.append(GlobalClusteringCoefficient())
 
     return vertex_metrics, graph_metrics

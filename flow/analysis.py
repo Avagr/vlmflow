@@ -75,17 +75,15 @@ class ModalityCentrality(BaseVertexMetric):
         return graph, [graph.vp.txt_centrality.a, graph.vp.img_centrality.a]
 
 
-class ClusteringCoefficient(BaseVertexMetric):
-    name = "clustering_coefficient"
-    labels = ["local_clustering_coefficient", "global_clustering_coefficient"]
+class LocalClusteringCoefficient(BaseVertexMetric):
+    name = "local_clustering_coefficient"
+    labels = ["local_clustering_coefficient"]
 
     @staticmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]],
-                 density_thresh: int = 1)  -> tuple[Graph, list[np.ndarray]]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]])  -> tuple[Graph, list[np.ndarray]]:
         graph.vp.local_clustering = graph.new_vertex_property("double", val=np.nan)
         adj = adjacency(graph).astype(np.short).T
         num_paths = (adj @ adj).toarray()
-        global_coeff = (num_paths > density_thresh).sum() / (num_paths > 0).sum()
         for v in graph.iter_vertices():
             if 0 < graph.vp.layer_num[v] < len(node_layers) - 1:
                 in_neigh = graph.get_in_neighbours(v, vprops=[graph.vp.token_num])
@@ -97,9 +95,9 @@ class ClusteringCoefficient(BaseVertexMetric):
                     graph.vp.local_clustering[v] = 0
                     continue
                 in_out_paths = num_paths[in_neigh[:, 0, None], out_neigh[:, 0]]
-                graph.vp.local_clustering[v] = (in_out_paths > density_thresh).sum() / num_possible_paths
+                graph.vp.local_clustering[v] = (in_out_paths > 1).sum() / num_possible_paths
 
-        return graph, [graph.vp.local_clustering.a, np.array(global_coeff)]
+        return graph, [graph.vp.local_clustering.a]
 
 
 class BaseGraphMetric(ABC):
@@ -123,6 +121,17 @@ class GraphDensity(BaseGraphMetric):
         token_nums = nodes[:, 2]
         mask = (layer_nums[:, None] == (layer_nums - 1)) & (token_nums[:, None] <= token_nums)
         return [(graph.num_edges() / mask.sum()).item()]
+
+
+class GlobalClusteringCoefficient(BaseGraphMetric):
+    name = "global_clustering_coefficient"
+    labels = ["global_clustering_coefficient"]
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[Number]:
+        adj = adjacency(graph).astype(np.short).T
+        num_paths = (adj @ adj)
+        return [(num_paths > 1).sum() / (num_paths > 0).sum()]
 
 
 class NumCrossModalEdges(BaseGraphMetric):
