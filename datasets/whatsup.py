@@ -37,6 +37,13 @@ class WhatsUp(BaseDataset):
         return idx, image, options, answer
 
     def table_repr(self, idx, prediction, img_as_object=True):
+        if isinstance(prediction, str):
+            return [
+                idx,
+                wandb.Image(str((self.root_dir / self.items[idx]['image_path']).resolve())) if img_as_object else self.items[idx]['image_path'],
+                prediction,
+                None,
+            ]
         if self.permute_options and prediction != -1:
             prediction = self.permutations[idx][prediction].item()
         item = self.items[idx]
@@ -63,16 +70,19 @@ class WhatsUpCollate:
 
 
 class WhatsUpEval:
-    def __init__(self, prompt, device, eval_method="ppl", scores_hooks=None):
-        split_prompt = re.split(r'(<C>)', prompt)
-        assert len(split_prompt) == 3, f"Prompt should have exactly one placeholder <C>"
-        self.pre_prompt = split_prompt[0]
-        self.post_prompt = split_prompt[2]
+    def __init__(self, prompt, device, eval_method="abcd", generation_config=None):
+        if eval_method == "abcd":
+            split_prompt = re.split(r'(<C>)', prompt)
+            assert len(split_prompt) == 3, f"Prompt should have exactly one placeholder <C>"
+            self.pre_prompt = split_prompt[0]
+            self.post_prompt = split_prompt[2]
+        elif eval_method == "gen":
+            self.prompt = prompt
+            assert generation_config is not None, "Generation config must be provided for 'gen' eval method"
+            self.generation_config = generation_config
         self.device = device
         self.eval_method = eval_method
-        self.callbacks = scores_hooks
-        if self.callbacks is None:
-            self.callbacks = []
+        self.callbacks = []
 
     def add_callback(self, callback):
         self.callbacks.append(callback)
@@ -92,11 +102,16 @@ class WhatsUpEval:
                           f"A. {opt[0]}\nB. {opt[1]}\nC. {opt[2]}\nD. {opt[3]}\n"
                           f"{self.post_prompt}") for opt in options]
                 scores, generated_ids = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
-                predictions = scores.argmax(-1)
+                predictions = scores.argmax(-1).cpu()
+            case "gen":
+                texts = [self.prompt] * batch_size
+                generated_text, generated_ids = model.generate(images, texts, self.generation_config)
+                predictions = answers # Will always result in accuracy 1
+                scores = None
             case _:
                 raise ValueError(f"Unsupported evaluation method {self.eval_method}")
         if self.callbacks is not None:
             for callback in self.callbacks:
                 callback(model, idx, texts, answers, predictions, scores)
 
-        return EvaluationResult(batch_size, idx.tolist(), texts, predictions.cpu(), answers, generated_ids)
+        return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, generated_ids)

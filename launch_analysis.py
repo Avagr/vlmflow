@@ -1,12 +1,11 @@
 import concurrent.futures
 from functools import partial
-from numbers import Number
 import os
 from pathlib import Path
 import pickle
-import json
 
 from graph_tool import Graph  # noqa
+from graph_tool import load_graph
 import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
@@ -35,49 +34,64 @@ def run(cfg: DictConfig):
 
     vertex_metrics, graph_metrics = create_metrics(cfg)
 
-    full_graph_dict, simple_graph_dict, node_layers_dict = {}, {}, {}
+    full_graph_dict, simple_graph_dict, node_layers_dict, node_pos_dict = {}, {}, {}, {}
     with concurrent.futures.ProcessPoolExecutor(max_workers=cfg.max_workers) as executor:
-        for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
-                             desc="Building graphs"):
+        if cfg.construct_graphs:
+            for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
+                                 desc="Building graphs"):
 
-            attn, attn_res, ffn, ffn_res = torch.load(base_dir / "graphs" / f"{row.idx}_graph_tensors.pkl",
-                                                      weights_only=True)
+                attn, attn_res, ffn, ffn_res = torch.load(base_dir / "graphs" / f"{row.idx}_graph_tensors.pkl",
+                                                          weights_only=True)
 
-            img_begin, img_end = get_image_token_boundaries(processor.tokenizer, row.prompt, cfg.model.img_token_id,
-                                                            cfg.model.img_dims)
+                img_begin, img_end = get_image_token_boundaries(processor.tokenizer, row.prompt, cfg.model.img_token_id,
+                                                                cfg.model.img_dims)
 
-            tokenized_prompt = processor.tokenizer(row.prompt)["input_ids"]
-            generated_token_ids = row.generated_ids[len(tokenized_prompt):]
-            generated_len = len(generated_token_ids)
+                tokenized_prompt = processor.tokenizer(row.prompt)["input_ids"]
+                generated_token_ids = row.generated_ids[len(tokenized_prompt):]
+                generated_len = len(generated_token_ids)
 
-            build_graph_for = partial(build_graph_from_contributions, attn=attn, attn_res=attn_res, ffn=ffn,
-                                      ffn_res=ffn_res,
-                                      img_begin=img_begin, img_end=img_end)
+                build_graph_for = partial(build_graph_from_contributions, attn=attn, attn_res=attn_res, ffn=ffn,
+                                          ffn_res=ffn_res, img_begin=img_begin, img_end=img_end)
 
-            results = list(
-                executor.map(
-                    build_graph_for,
-                    [cfg.graph_threshold] * generated_len,
-                    range(-generated_len, 0)
+                results = list(
+                    executor.map(
+                        build_graph_for,
+                        [cfg.graph_threshold] * generated_len,
+                        range(-generated_len, 0)
+                    )
                 )
-            )
 
-            full_graphs, simple_graphs, node_layers = [], [], []
+                full_graphs, simple_graphs, node_layers, node_pos = [], [], [], []
 
-            for full_graph, simple_graph, node_layer in results:
-                full_graphs.append(full_graph)
-                simple_graphs.append(simple_graph)
-                node_layers.append(node_layer)
+                for full_graph, simple_graph, node_layer in results:
+                    full_graphs.append(full_graph)
+                    simple_graphs.append(simple_graph)
+                    node_layers.append(node_layer)
+                    node_pos.append((simple_graph.vp.layer_num.a, simple_graph.vp.token_num.a))
 
-            full_graph_dict[idx] = full_graphs
-            simple_graph_dict[idx] = simple_graphs
-            node_layers_dict[idx] = node_layers
+                full_graph_dict[idx] = full_graphs
+                simple_graph_dict[idx] = simple_graphs
+                node_layers_dict[idx] = node_layers
+                node_pos_dict[idx] = node_pos
 
+        else:
+            node_layers_dict = pickle.load(open(base_dir / "node_layers_dict.pkl", "rb"))
+            node_pos_dict = pickle.load(open(base_dir / "node_pos_dict.pkl", "rb"))
+            for idx in tqdm(results_table.idx, desc="Loading graphs"):
+                full_graphs, simple_graphs, node_layers = [], [], []
+                for i in range(len(node_layers_dict[idx])):
+                    full_graphs.append(load_graph(str(base_dir / "full_graphs" / f"{idx}_{i}.gt")))
+                    simple_graphs.append(load_graph(str(base_dir / "simple_graphs" / f"{idx}_{i}.gt"),
+                                                    ignore_vp=["txt_contrib", "img_contrib", "txt_centrality",
+                                                               "img_centrality", "local_clustering"]))
+
+                full_graph_dict[idx] = full_graphs
+                simple_graph_dict[idx] = simple_graphs
 
         for metric in vertex_metrics:
             vertex_metric_results: dict[str, dict[int, list[np.ndarray]]] = {lab: {} for lab in metric.labels}
             for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
-                                 desc=f"Computing {metric.name}"): #type: int, pd.Series
+                                 desc=f"Computing {metric.name}"):  # type: int, pd.Series
 
                 for lab in metric.labels:
                     vertex_metric_results[lab][idx] = []
@@ -99,7 +113,7 @@ def run(cfg: DictConfig):
 
             pickle.dump(vertex_metric_results, open(base_dir / f"{metric.name}_results.pkl", "wb"))
 
-        graph_metrics_results: dict[str, dict[int, list[Number]]] = {}
+        graph_metrics_results: dict[str, dict[int, list]] = {}
         for metric in graph_metrics:
             for lab in metric.labels:
                 graph_metrics_results[lab] = {}
@@ -107,7 +121,8 @@ def run(cfg: DictConfig):
                                  desc=f"Computing {metric.name}"):  # type: int, pd.Series
                 simple_graphs: list[Graph] = simple_graph_dict[idx]
 
-                graph_metrics_results[lab][idx] = []
+                for lab in metric.labels:
+                    graph_metrics_results[lab][idx] = []
 
                 results = list(
                     executor.map(
@@ -137,6 +152,7 @@ def run(cfg: DictConfig):
     # pickle.dump(full_graph_dict, open(base_dir / "full_graph_dict.pkl", "wb"))
     # pickle.dump(simple_graph_dict, open(base_dir / "simple_graph_dict.pkl", "wb"))
     pickle.dump(node_layers_dict, open(base_dir / "node_layers_dict.pkl", "wb"))
+    pickle.dump(node_pos_dict, open(base_dir / "node_pos_dict.pkl", "wb"))
 
 
 if __name__ == '__main__':

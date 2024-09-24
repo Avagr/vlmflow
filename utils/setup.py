@@ -49,7 +49,7 @@ def create_eval_task(cfg, device):
         case "SEED-Bench-2":
             dataset = SEEDBenchSingleImage(cfg.task.task_num, Path(cfg.task.json_path), Path(cfg.task.image_root))
             collate = SEEDBenchCollate()
-            wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, device, cfg.task.eval_method)
+            wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, device, cfg.task.eval_method, sampling_config)
 
         case "WhatsUp":
             if cfg.task.part == 'A':
@@ -60,7 +60,7 @@ def create_eval_task(cfg, device):
                 raise ValueError(f"Unsupported What's Up part '{cfg.task.part}'")
             dataset = WhatsUp(Path(cfg.task.image_root), json_path, permute_options=cfg.task.permute)
             collate = WhatsUpCollate()
-            wrapper = WhatsUpEval(cfg.prompt.text, device, cfg.task.eval_method)
+            wrapper = WhatsUpEval(cfg.prompt.text, device, cfg.task.eval_method, sampling_config)
 
         case "GQA":
             dataset = GQA(Path(cfg.task.test_question_file), Path(cfg.task.img_dir))
@@ -110,7 +110,12 @@ def create_metrics(cfg) -> tuple[list[BaseVertexMetric], list[BaseGraphMetric]]:
         graph_metrics.append(GraphDensity())
     if cfg.num_cross_modal_edges:
         graph_metrics.append(NumCrossModalEdges())
+        graph_metrics.append(NumCrossModalEdgesCentrality())
     if cfg.global_clustering_coefficient:
         graph_metrics.append(GlobalClusteringCoefficient())
+    if cfg.residual_stream_heights:
+        graph_metrics.append(ResidualStreamHeights())
+    if cfg.centrality_overlap:
+        graph_metrics.append(CentralityOverlap())
 
     return vertex_metrics, graph_metrics

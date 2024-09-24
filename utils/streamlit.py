@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from transformers import AutoProcessor
+
 # An array of simple and distinct colors (names) for the nodes
 
 colors = [
@@ -49,7 +51,7 @@ def get_image_dir(run_dir):
     raise ValueError(f"Dataset from run {run_dir} is not supported")
 
 
-@st.cache_resource
+@st.cache_resource(hash_funcs={dict: id})
 def process_centrality(centrality):
     txt_centrality = []
     img_centrality = []
@@ -103,7 +105,6 @@ def process_centrality(centrality):
 
 @st.cache_resource
 def load_processor(model_id):
-    from transformers import AutoProcessor
     return AutoProcessor.from_pretrained(model_id)
 
 

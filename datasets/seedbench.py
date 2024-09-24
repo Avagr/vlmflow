@@ -82,22 +82,28 @@ class SEEDBenchCollate:
 
 class SEEDBenchSingleImageEval(EvalWrapper):
 
-    def __init__(self, prompt, device, eval_method="ppl"):
+    def __init__(self, prompt, device, eval_method="abcd", generation_config=None):
         """
         Supports the following scoring methods:
 
-            * "ppl": take the answer with the lowest loss in a <question: q, answer: answer> setting
+            * "gen": generates text in response to the prompt, no questions or answers
             * "abcd": take the answer with the highest score in a <question: q, choices: [a, b, c, d], answer:> setting
 
         :param prompt: prompt format: arbitrary string with <Q> and <C> being placeholders for the question and the choices
         :param device: pytorch device
         :param eval_method: method to use for scoring:
         """
-        split_prompt = re.split(r'(<[QC]>)', prompt)
-        assert len(split_prompt) == 5, f"Prompt should have exactly 2 placeholders, got {len(split_prompt)}"
-        self.pre_prompt = split_prompt[0]
-        self.mid_prompt = split_prompt[2]
-        self.post_prompt = split_prompt[4]
+
+        if eval_method == "abcd":
+            split_prompt = re.split(r'(<[QC]>)', prompt)
+            assert len(split_prompt) == 5, f"Prompt should have exactly 2 placeholders, got {len(split_prompt)}"
+            self.pre_prompt = split_prompt[0]
+            self.mid_prompt = split_prompt[2]
+            self.post_prompt = split_prompt[4]
+        elif eval_method == "gen":
+            self.prompt = prompt
+            assert generation_config is not None, "Generation config must be provided for 'gen' eval method"
+            self.generation_config = generation_config
         self.device = device
         self.eval_method = eval_method
         self.callbacks = []
@@ -122,6 +128,11 @@ class SEEDBenchSingleImageEval(EvalWrapper):
                           f"{self.post_prompt}") for q, cand in zip(questions, choices)]
                 scores, generated_ids = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
                 predictions = scores.argmax(-1).cpu()
+            case "gen":
+                texts = [self.prompt] * batch_size
+                generated_text, generated_ids = model.generate(images, texts, self.generation_config)
+                predictions = answers  # Will always result in accuracy 1
+                scores = None
             case _:
                 raise ValueError(f"Unsupported evaluation method {self.eval_method}")
 

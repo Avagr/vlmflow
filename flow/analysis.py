@@ -6,8 +6,8 @@ from graph_tool.search import dfs_iterator
 from graph_tool.spectral import adjacency
 import numpy as np
 
-
 EPS = 1e-5
+
 
 class BaseVertexMetric(ABC):
     labels: list[str] = []
@@ -24,7 +24,7 @@ class ModalityContribution(BaseVertexMetric):
     labels = ["txt_contrib", "img_contrib"]
 
     @staticmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]])  -> tuple[Graph, list[np.ndarray]]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]]) -> tuple[Graph, list[np.ndarray]]:
         graph.vp.txt_contrib = graph.new_vertex_property("float", val=0.)
         graph.vp.img_contrib = graph.new_vertex_property("float", val=0.)
 
@@ -54,7 +54,7 @@ class ModalityCentrality(BaseVertexMetric):
     labels = ["txt_centrality", "img_centrality"]
 
     @staticmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]])  -> tuple[Graph, list[np.ndarray]]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]]) -> tuple[Graph, list[np.ndarray]]:
         graph.vp.img_centrality = graph.new_vertex_property("short", val=0)
         graph.vp.txt_centrality = graph.new_vertex_property("short", val=0)
 
@@ -80,7 +80,7 @@ class LocalClusteringCoefficient(BaseVertexMetric):
     labels = ["local_clustering_coefficient"]
 
     @staticmethod
-    def __call__(graph: Graph, node_layers: dict[int, list[int]])  -> tuple[Graph, list[np.ndarray]]:
+    def __call__(graph: Graph, node_layers: dict[int, list[int]]) -> tuple[Graph, list[np.ndarray]]:
         graph.vp.local_clustering = graph.new_vertex_property("double", val=np.nan)
         adj = adjacency(graph).astype(np.short).T
         num_paths = (adj @ adj).toarray()
@@ -106,7 +106,7 @@ class BaseGraphMetric(ABC):
 
     @staticmethod
     @abstractmethod
-    def __call__(graph: Graph) -> list[Number]:
+    def __call__(graph: Graph) -> list:
         pass
 
 
@@ -138,10 +138,57 @@ class NumCrossModalEdges(BaseGraphMetric):
     name = "num_cross_modal_edges"
     labels = ["num_cross_modal_edges"]
 
-
     @staticmethod
     def __call__(graph: Graph) -> list[Number]:
         source_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='source').a
         target_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='target').a
 
         return [((source_mod >= 1 - EPS) & (target_mod < 1 - EPS)).sum().item()]
+
+
+class NumCrossModalEdgesCentrality(BaseGraphMetric):
+    name = "num_cross_modal_edges_centrality"
+    labels = ["num_cross_modal_edges_centrality"]
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[Number]:
+        source_txt = edge_endpoint_property(graph, graph.vp.txt_centrality, endpoint='source').a
+        target_img = edge_endpoint_property(graph, graph.vp.img_centrality, endpoint='target').a
+        target_txt = edge_endpoint_property(graph, graph.vp.txt_centrality, endpoint='target').a
+
+        return [((source_txt == 0) & (target_img > 0) & (target_txt > 0)).sum().item()]
+
+
+class ResidualStreamHeights(BaseGraphMetric):
+    name = "residual_stream_heights"
+    labels = ["residual_stream_heights"]
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[dict[int, int]]:
+        vs = graph.get_vertices(vprops=[graph.vp.token_num, graph.vp.layer_num])
+        token_height = {}
+        for _, v, h in vs:
+            if v not in token_height:
+                token_height[v.item()] = h.item()
+            else:
+                token_height[v.item()] = max(token_height[v.item()], h.item())
+        return [token_height]
+
+
+class CentralityOverlap(BaseGraphMetric):
+    name = "centrality_overlap"
+    labels = ["jaccard_index", "txt_difference", "img_difference"]
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[Number]:
+        txt_centrality = graph.vp.txt_centrality.a
+        img_centrality = graph.vp.img_centrality.a
+        total_centrality = txt_centrality + img_centrality
+        intersection_centrality = np.where(txt_centrality > img_centrality, img_centrality, txt_centrality)
+        img_difference = img_centrality - intersection_centrality
+        txt_difference = txt_centrality - intersection_centrality
+        return [
+            (intersection_centrality.sum() / total_centrality.sum()).item(),
+            (txt_difference.sum() / total_centrality.sum()).item(),
+            (img_difference.sum() / total_centrality.sum()).item()
+        ]

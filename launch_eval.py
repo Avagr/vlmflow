@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from graph_tool import Graph  # noqa
 import hydra
 import wandb
 import torch
