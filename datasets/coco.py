@@ -1,19 +1,16 @@
 import json
 from pathlib import Path
 
+from PIL import Image
 import torch
 import wandb
 
 from datasets.base import BaseDataset, EvalWrapper
-from PIL import Image
-
-from models.transparent_llm import TransparentLlm
 from models.wrappers import GenerativeWrapper
 from utils.eval import EvaluationResult
 
 
 class UnlabeledCoco(BaseDataset):
-
     table_columns = ['idx', 'image', 'generated_caption']
 
     def __init__(self, img_dir: Path, img_descriptions_file: Path, dataset_size: int = None):
@@ -68,7 +65,8 @@ class UnlabeledCocoEval(EvalWrapper):
         idx, images = batch
         batch_size = idx.shape[0]
         texts = [self.prompt] * batch_size
-        generated_text, generated_ids = model.generate(images, texts, self.generation_config)
+        generated_text, generated_ids, num_generated_tokens = model.generate(images, texts, self.generation_config)
         for callback in self.callbacks:
             callback(model, idx, generated_text)
-        return EvaluationResult(batch_size, idx.tolist(), texts, generated_text, generated_text, generated_ids)
+        return EvaluationResult(batch_size, idx.tolist(), texts, generated_text, generated_text, generated_ids,
+                                num_generated_tokens)

@@ -1,2 +1,2 @@
 #text: "USER: Describe this image in detail\n<image>\nASSISTANT: "
-text: "USER: <image>\nDescribe this image in detail\nASSISTANT: "
+text: "USER: <image>\nDescribe this image in detail\nASSISTANT:\n"

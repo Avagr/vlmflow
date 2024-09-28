@@ -1,10 +1,10 @@
 import json
-import re
 from pathlib import Path
+import re
 
+from PIL import Image
 import torch
 import wandb
-from PIL import Image
 
 from datasets.base import BaseDataset
 from models.wrappers import GenerativeWrapper
@@ -40,7 +40,8 @@ class WhatsUp(BaseDataset):
         if isinstance(prediction, str):
             return [
                 idx,
-                wandb.Image(str((self.root_dir / self.items[idx]['image_path']).resolve())) if img_as_object else self.items[idx]['image_path'],
+                wandb.Image(str((self.root_dir / self.items[idx]['image_path']).resolve())) if img_as_object else
+                self.items[idx]['image_path'],
                 prediction,
                 None,
             ]
@@ -101,12 +102,14 @@ class WhatsUpEval:
                 texts = [(f"{self.pre_prompt}"
                           f"A. {opt[0]}\nB. {opt[1]}\nC. {opt[2]}\nD. {opt[3]}\n"
                           f"{self.post_prompt}") for opt in options]
-                scores, generated_ids = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
+                scores, generated_ids, num_generated_tokens = model.score_single_tokens(images, texts,
+                                                                                        ['A', 'B', 'C', 'D'])
                 predictions = scores.argmax(-1).cpu()
             case "gen":
                 texts = [self.prompt] * batch_size
-                generated_text, generated_ids = model.generate(images, texts, self.generation_config)
-                predictions = answers # Will always result in accuracy 1
+                generated_text, generated_ids, num_generated_tokens = model.generate(images, texts,
+                                                                                     self.generation_config)
+                predictions = answers  # Will always result in accuracy 1
                 scores = None
             case _:
                 raise ValueError(f"Unsupported evaluation method {self.eval_method}")
@@ -114,4 +117,5 @@ class WhatsUpEval:
             for callback in self.callbacks:
                 callback(model, idx, texts, answers, predictions, scores)
 
-        return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, generated_ids)
+        return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, generated_ids,
+                                num_generated_tokens)

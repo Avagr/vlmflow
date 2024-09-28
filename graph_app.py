@@ -26,7 +26,7 @@ if __name__ == "__main__":
     def reset_state():
         st.session_state.clear()
 
-    run_dirs = ["Unlabeled_COCO/llava_test_2024_09_16-00_10_20"] + [
+    run_dirs =[
         "WhatsUp_A/llava_base_2024_09_14-22_49_27",
         "WhatsUp_A/llava_gen_2024_09_22-23_12_59",
         "WhatsUp_B/llava_base_2024_09_14-22_49_28",
@@ -47,8 +47,9 @@ if __name__ == "__main__":
         "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17",
         "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11",
         "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12",
-        "Unlabeled_COCO/llava_2000_2024_09_15-01_57_15",
+        "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31",
         "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57",
+        "Unlabeled_COCO/molmo_test_2024_09_29-01_53_26"
     ]
 
     margins_css = """
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     print("Loaded processor")
 
     base_dir = "/home/projects/shimon/agroskin/projects/vlmflow/results"
-    run_dir = st.selectbox("Run Directory", run_dirs, index=1, on_change=st.session_state.clear)
+    run_dir = st.selectbox("Run Directory", run_dirs, index=20, on_change=st.session_state.clear)
     table, node_layers, centrality_results, graph_metrics = read_metric_results(f"{base_dir}/{run_dir}")
     print("Loaded metrics")
     image_dir = get_image_dir(run_dir)
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     print("Processed centrality")
 
     with st.sidebar:
-        table_index = st.number_input("Table index", value=0, min_value=0, max_value=len(table) - 1)
+        table_index = st.number_input("Table index", value=883, min_value=0, max_value=len(table) - 1)
         table_row = table.iloc[table_index]
         st.write(processor.decode(table_row.generated_ids))
 
@@ -145,24 +146,27 @@ if __name__ == "__main__":
     if graph_output is not None:
         st.session_state.current_token = graph_output
 
-    heatmap = np.zeros((24, 24))
-    graph_idx = st.session_state.current_token - num_before_graphs - 1
-    if graph_idx >= 0:
-        graph = simple_graphs[graph_idx]
-        starting_nodes = find_vertex(graph, graph.vp.layer_num, 0)
-        for node in starting_nodes:
-            node_pos = graph.vp.token_num[node]
-            if img_beg <= node_pos < img_end:
-                node_pos -= img_beg
-                heatmap[node_pos // 24, node_pos % 24] = 1
+    # heatmap = np.zeros((24, 24))
+    # graph_idx = st.session_state.current_token - num_before_graphs
+    # print(graph_idx)
+    # if graph_idx >= 0:
+    #     graph = simple_graphs[graph_idx]
+    #     starting_nodes = find_vertex(graph, graph.vp.layer_num, 0)
+    #     for node in starting_nodes:
+    #         node_pos = graph.vp.token_num[node]
+    #         if img_beg <= node_pos < img_end:
+    #             node_pos -= img_beg
+    #             heatmap[node_pos // 24, node_pos % 24] = 1
+    #
+    # print(heatmap)
 
-    with st.sidebar:
-        fig, ax = plt.subplots()
-        img_path = f"{image_dir}/{table_row.image}"
-        if "seedbench" in image_dir and not table_row.image.endswith(".png"):
-            img_path = f"{image_dir}/cc3m-images/{table_row.image}"
-        heatmap_overlay = plot_image_with_heatmap(Image.open(img_path), heatmap, ax=ax)
-        st.pyplot(fig)
+    # with st.sidebar:
+    #     fig, ax = plt.subplots()
+    #     img_path = f"{image_dir}/{table_row.image}"
+    #     if "seedbench" in image_dir and not table_row.image.endswith(".png"):
+    #         img_path = f"{image_dir}/cc3m-images/{table_row.image}"
+    #     heatmap_overlay = plot_image_with_heatmap(Image.open(img_path), heatmap, ax=ax)
+    #     st.pyplot(fig)
 
     tokenized_prompt = processor.tokenizer(table_row.prompt)["input_ids"]
     stringified_token = processor.tokenizer.convert_ids_to_tokens(table_row.generated_ids[len(tokenized_prompt):])

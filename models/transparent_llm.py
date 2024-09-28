@@ -46,6 +46,10 @@ class TransparentLlm(ABC, nn.Module):
         pass
 
     @abstractmethod
+    def generate(self, **inputs):
+        pass
+
+    @abstractmethod
     def batch_size(self) -> int:
         """
         The size of the batch that was used for the last call of `run`.
@@ -57,7 +61,12 @@ class TransparentLlm(ABC, nn.Module):
         pass
 
     @abstractmethod
-    def tokens_to_strings(self, tokens: Int[torch.Tensor, "pos"]) -> List[str]:
+    def image_token_pos(self, batch_i: int) -> (int, int):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def tokens_to_strings(tokens: Int[torch.Tensor, "pos"], tokenizer) -> List[str]:
         pass
 
     @abstractmethod
@@ -66,6 +75,7 @@ class TransparentLlm(ABC, nn.Module):
         Return the logits for the given token after the given layer using the "logit lens" technique
         """
         pass
+
 
     @abstractmethod
     def logits(self) -> Float[torch.Tensor, "batch pos d_vocab"]:
@@ -197,6 +207,12 @@ class TransparentLlm(ABC, nn.Module):
     def decomposed_attn_head(
             self, head_i: int, batch_i: int, layer: int
     ) -> Float[torch.Tensor, "source target d_model"]:
+        pass
+
+    @abstractmethod
+    def decomposed_attn_head_slice(
+            self, head_start: int, head_end: int, batch_i: int, layer: int
+    ) -> Float[torch.Tensor, "source target slice d_model"]:
         pass
 
     @abstractmethod

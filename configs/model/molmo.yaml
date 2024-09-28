@@ -1,0 +1,6 @@
+name: molmo
+config_name: allenai/Molmo-7B-D-0924
+processor_path: "${model.config_name}"
+dtype: bfloat16
+img_token_id: null
+img_dims: null

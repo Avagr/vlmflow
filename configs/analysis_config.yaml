@@ -1,6 +1,6 @@
 defaults:
     - _self_
-    - model: llava
+    - model: molmo
 
 wandb_project: vlmflow
 wandb_entity: avagr
@@ -12,7 +12,7 @@ resume_wandb_id: null
 max_workers: 16
 
 results_dir: /home/projects/shimon/agroskin/projects/vlmflow/results
-run_dir: WhatsUp_B/llava_gen_2024_09_22-23_12_59
+run_dir: Unlabeled_COCO/molmo_test_2024_09_29-01_53_26
 #run_dir: Unlabeled_COCO/llava_test_2024_09_16-00_10_20
 
 construct_graphs: true
@@ -25,7 +25,7 @@ local_clustering_coefficient: true
 
 # Graph metrics
 graph_density: true
-num_cross_modal_edges: ${modality_contribution}
+cross_modal_edges: ${modality_contribution}
 global_clustering_coefficient: true
 residual_stream_heights: true
 centrality_overlap: ${modality_centrality}

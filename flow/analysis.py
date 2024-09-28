@@ -134,29 +134,30 @@ class GlobalClusteringCoefficient(BaseGraphMetric):
         return [(num_paths > 1).sum() / (num_paths > 0).sum()]
 
 
-class NumCrossModalEdges(BaseGraphMetric):
-    name = "num_cross_modal_edges"
-    labels = ["num_cross_modal_edges"]
+class CrossModalEdges(BaseGraphMetric):
+    name = "cross_modal_edges"
+    labels = ["cross_modal_edges"]
 
     @staticmethod
     def __call__(graph: Graph) -> list[Number]:
+        if graph.num_edges() == 0:
+            return [0]
         source_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='source').a
         target_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='target').a
+        return [((source_mod >= 1 - EPS) & (target_mod < 1 - EPS)).sum().item() / graph.num_edges()]
 
-        return [((source_mod >= 1 - EPS) & (target_mod < 1 - EPS)).sum().item()]
 
-
-class NumCrossModalEdgesCentrality(BaseGraphMetric):
-    name = "num_cross_modal_edges_centrality"
-    labels = ["num_cross_modal_edges_centrality"]
-
-    @staticmethod
-    def __call__(graph: Graph) -> list[Number]:
-        source_txt = edge_endpoint_property(graph, graph.vp.txt_centrality, endpoint='source').a
-        target_img = edge_endpoint_property(graph, graph.vp.img_centrality, endpoint='target').a
-        target_txt = edge_endpoint_property(graph, graph.vp.txt_centrality, endpoint='target').a
-
-        return [((source_txt == 0) & (target_img > 0) & (target_txt > 0)).sum().item()]
+# class NumCrossModalEdgesCentrality(BaseGraphMetric):
+#     name = "num_cross_modal_edges_centrality"
+#     labels = ["num_cross_modal_edges_centrality"]
+#
+#     @staticmethod
+#     def __call__(graph: Graph) -> list[Number]:
+#         source_txt = edge_endpoint_property(graph, graph.vp.txt_centrality, endpoint='source').a
+#         target_img = edge_endpoint_property(graph, graph.vp.img_centrality, endpoint='target').a
+#         target_txt = edge_endpoint_property(graph, graph.vp.txt_centrality, endpoint='target').a
+#
+#         return [((source_txt == 0) & (target_img > 0) & (target_txt > 0)).sum().item() / graph.num_edges()]
 
 
 class ResidualStreamHeights(BaseGraphMetric):

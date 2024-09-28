@@ -14,7 +14,7 @@ from tqdm.auto import tqdm
 from transformers import AutoProcessor
 
 from flow.graphs import build_graph_from_contributions
-from utils.misc import set_random_seed, get_image_token_boundaries
+from utils.misc import set_random_seed
 from utils.setup import create_metrics
 
 
@@ -29,7 +29,7 @@ def run(cfg: DictConfig):
 
     base_dir = Path(cfg.results_dir) / cfg.run_dir
     results_table = pd.read_parquet(base_dir / "results_table.parquet")
-    processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
+    processor = AutoProcessor.from_pretrained(cfg.model.processor_path, trust_remote_code=True)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     vertex_metrics, graph_metrics = create_metrics(cfg)
@@ -43,12 +43,7 @@ def run(cfg: DictConfig):
                 attn, attn_res, ffn, ffn_res = torch.load(base_dir / "graphs" / f"{row.idx}_graph_tensors.pkl",
                                                           weights_only=True)
 
-                img_begin, img_end = get_image_token_boundaries(processor.tokenizer, row.prompt, cfg.model.img_token_id,
-                                                                cfg.model.img_dims)
-
-                tokenized_prompt = processor.tokenizer(row.prompt)["input_ids"]
-                generated_token_ids = row.generated_ids[len(tokenized_prompt):]
-                generated_len = len(generated_token_ids)
+                img_begin, img_end, generated_len = row.img_begin, row.img_end, row.num_generated_tokens
 
                 build_graph_for = partial(build_graph_from_contributions, attn=attn, attn_res=attn_res, ffn=ffn,
                                           ffn_res=ffn_res, img_begin=img_begin, img_end=img_end)
@@ -73,7 +68,6 @@ def run(cfg: DictConfig):
                 simple_graph_dict[idx] = simple_graphs
                 node_layers_dict[idx] = node_layers
                 node_pos_dict[idx] = node_pos
-
         else:
             node_layers_dict = pickle.load(open(base_dir / "node_layers_dict.pkl", "rb"))
             node_pos_dict = pickle.load(open(base_dir / "node_pos_dict.pkl", "rb"))

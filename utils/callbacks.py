@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 
 from flow.contributions import get_contribution_matrices
+from models.wrappers import GenerativeWrapper
 
 
 class Callback(ABC):
@@ -20,6 +21,26 @@ class Callback(ABC):
     @abstractmethod
     def get_results(self):
         pass
+
+
+class ImageBoundariesCallback(Callback):
+
+    @property
+    def score_labels(self) -> list[str]:
+        return ["img_begin", "img_end"]
+
+    def __init__(self):
+        self.img_begin = {}
+        self.img_end = {}
+
+    def __call__(self, model_wrapper: GenerativeWrapper, idx, *_):
+        for pos, i in enumerate(idx.tolist()):
+            beg, end = model_wrapper.model.image_token_pos(pos)
+            self.img_begin[i] = beg
+            self.img_end[i] = end
+
+    def get_results(self):
+        return [self.img_begin, self.img_end]
 
 
 class LogitLensCallback(Callback):
@@ -80,3 +101,29 @@ class GraphTensorCallback(Callback):
 
     def get_results(self) -> list[dict]:
         return [self.graph_paths]
+
+
+class ResidualsByLayerCallback(Callback):
+    @property
+    def score_labels(self) -> list[str]:
+        return ["residuals"]
+
+    def __init__(self, residual_save_dir: Path, num_last_tokens: int, from_layer: int):
+        self.residual_save_dir = residual_save_dir
+        self.num_last_tokens = num_last_tokens
+        self.from_layer = from_layer
+        self.res_paths = {}
+
+    def __call__(self, model_wrapper, idx, *_):
+        model = model_wrapper.model
+        num_layers = model.n_layers
+        residuals_out = torch.stack([model.residual_out(layer).cpu() for layer in range(self.from_layer, num_layers)], dim=1)
+        for i, res in zip(idx.tolist(), residuals_out):
+            residual_file = self.residual_save_dir / f"{i}_residuals.pt"
+            torch.save(res[:, -self.num_last_tokens:, :].clone(), residual_file)
+            self.res_paths[i] = str(residual_file.resolve())
+
+    def get_results(self) -> list[dict]:
+        return [self.res_paths]
+
+

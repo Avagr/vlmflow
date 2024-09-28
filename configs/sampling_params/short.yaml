@@ -1,5 +1,5 @@
 do_sample: false
-max_length: 60
+max_new_tokens: 40
 #min_length: 1
 #num_beams: 5
 #top_p: 0.9

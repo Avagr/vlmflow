@@ -10,9 +10,11 @@ from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
 from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
 from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate
 from flow.analysis import *
-from models.transparent_models import TransparentLlava
+from models.molmo.modeling_molmo import MolmoForCausalLM
+from models.molmo.preprocessing_molmo import MolmoProcessor
+from models.transparent_models import TransparentLlava, TransparentMolmo
 from models.wrappers import GenerativeWrapper
-from utils.callbacks import GraphTensorCallback, LogitLensCallback
+from utils.callbacks import GraphTensorCallback, LogitLensCallback, ResidualsByLayerCallback, ImageBoundariesCallback
 
 
 def create_model(cfg, device):
@@ -31,12 +33,23 @@ def create_model(cfg, device):
 
             llava = LlavaForConditionalGeneration.from_pretrained(cfg.model.config_name,
                                                                   torch_dtype=dtype,
-                                                                  low_cpu_mem_usage=True,
+                                                                  # low_cpu_mem_usage=True,
                                                                   attn_implementation=cfg.model.attn_impl)
 
             processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
             model = TransparentLlava(cfg.model.name, llava, processor, device, dtype)
             model = GenerativeWrapper(processor, model, device, dtype, output_attentions=True)
+        case "molmo":
+            molmo = MolmoForCausalLM.from_pretrained(
+                cfg.model.config_name,
+                torch_dtype=dtype,
+                device_map='auto',
+            )
+            molmo.model.vision_backbone = molmo.model.vision_backbone.to(torch.float)
+            processor =  MolmoProcessor.from_pretrained(cfg.model.config_name, trust_remote_code=True)
+            model = TransparentMolmo(cfg.model.name, molmo, processor, device, dtype)
+            model = GenerativeWrapper(processor, model, device, dtype, output_attentions=True)
+
         case _:
             raise ValueError(f"Unsupported model '{cfg.model.name}'")
 
@@ -84,6 +97,7 @@ def create_eval_task(cfg, device):
 
 
 def create_callbacks(cfg, eval_wrapper: EvalWrapper, run_folder: Path, model: GenerativeWrapper):
+    eval_wrapper.add_callback(ImageBoundariesCallback())
     if cfg.save_full_graphs:
         (run_folder / "graphs").mkdir(parents=True, exist_ok=True)
         # callback = GraphCallback(run_folder / "graphs", cfg.renormalization_threshold, cfg.sparsification_threshold)
@@ -92,6 +106,10 @@ def create_callbacks(cfg, eval_wrapper: EvalWrapper, run_folder: Path, model: Ge
     if cfg.last_token_logit_lens:
         callback = LogitLensCallback(["A", "B", "C", "D"], normalize_lens=cfg.normalize_lens,
                                      tokenizer=model.processor.tokenizer)
+        eval_wrapper.add_callback(callback)
+    if cfg.capture_residual_streams:
+        (run_folder / "residuals").mkdir(parents=True, exist_ok=True)
+        callback = ResidualsByLayerCallback(run_folder / "residuals", cfg.num_last_tokens, cfg.from_layer)
         eval_wrapper.add_callback(callback)
     return eval_wrapper.callbacks
 
@@ -108,9 +126,8 @@ def create_metrics(cfg) -> tuple[list[BaseVertexMetric], list[BaseGraphMetric]]:
     graph_metrics = []
     if cfg.graph_density:
         graph_metrics.append(GraphDensity())
-    if cfg.num_cross_modal_edges:
-        graph_metrics.append(NumCrossModalEdges())
-        graph_metrics.append(NumCrossModalEdgesCentrality())
+    if cfg.cross_modal_edges:
+        graph_metrics.append(CrossModalEdges())
     if cfg.global_clustering_coefficient:
         graph_metrics.append(GlobalClusteringCoefficient())
     if cfg.residual_stream_heights:

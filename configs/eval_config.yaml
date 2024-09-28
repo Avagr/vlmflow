@@ -1,7 +1,7 @@
 defaults:
     - _self_
-    - task: whatsup
-    - model: llava
+    - task: coco
+    - model: molmo
     - sampling_params: short
 
 prompt: "${model}_${task}_${task.eval_method}"
@@ -32,9 +32,13 @@ results_path: /home/projects/shimon/agroskin/projects/vlmflow/results
 model_size: ???
 
 save_full_graphs: true
-head_batch_size: 4
+head_batch_size: 6
 renormalization_threshold: null
 sparsification_threshold: null
 
 last_token_logit_lens: false
 normalize_lens: true
+
+capture_residual_streams: true
+num_last_tokens: 40
+from_layer: 0

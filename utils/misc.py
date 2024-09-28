@@ -70,9 +70,3 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def get_image_token_boundaries(tokenizer, prompt: str, img_token_id: int, img_dims: (int, int)):
-    tokenized_prompt = tokenizer(prompt).input_ids
-    img_begin = tokenized_prompt.index(img_token_id)
-    h, w = img_dims
-    img_end = img_begin + h * w - 1
-    return img_begin, img_end

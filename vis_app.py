@@ -54,7 +54,7 @@ if __name__ == "__main__":
                 txt_difference[run_dir].extend(graph_metrics["txt_difference"][idx])
                 img_difference[run_dir].extend(graph_metrics["img_difference"][idx])
                 densities[run_dir].extend(graph_metrics["density"][idx])
-                num_cross_modal_edges[run_dir].extend(graph_metrics["num_cross_modal_edges"][idx])
+                num_cross_modal_edges[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
                 num_cross_modal_edges_centrality[run_dir].extend(graph_metrics["num_cross_modal_edges_centrality"][idx])
                 global_clustering_coefficient[run_dir].extend(graph_metrics["global_clustering_coefficient"][idx])
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     st.header("Node Metrics")
 
-    # Plot histograms for each run_dir for densities, num_cross_modal_edges, num_cross_modal_edges_centrality, global_clustering_coefficient
+    # Plot histograms for each run_dir for densities, cross_modal_edges, num_cross_modal_edges_centrality, global_clustering_coefficient
     fig = make_subplots(rows=2, cols=2,
                         subplot_titles=["Density", "Num Cross Modal Edges", "Num Cross Modal Edges Centrality",
                                         "Global Clustering Coefficient"])

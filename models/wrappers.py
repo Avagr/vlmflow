@@ -16,7 +16,7 @@ class GenerativeWrapper(nn.Module):
         processor.tokenizer.padding_side = 'left'
         self.model = model
         self.device = device
-        self.dtype = dtype
+        self.dtype = dtype if model.name != "molmo" else torch.float
         self.ignore_index = -100
         self.text_score = nn.CrossEntropyLoss(ignore_index=self.ignore_index, reduction='none')
         self.image_token_index = 32000
@@ -25,18 +25,28 @@ class GenerativeWrapper(nn.Module):
         self.output_attentions = output_attentions
 
     def generate(self, images: list[torch.Tensor], texts: list[str], config: GenerationConfig) -> (
-    list[str], list[list[int]]):
+            list[str], list[list[int]], list[int]):
         inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,
                                                                                                  dtype=self.dtype)
-        generated_ids = self.model.underlying_model().generate(**inputs, generation_config=config)
-
+        generated_ids = self.model.generate(**inputs, generation_config=config)
+        num_generated_tokens = [len(generated_ids[i]) - len(inputs.input_ids[i]) for i in range(len(texts))]
         # One more forward to save the activations in the transparent model
-        padded_mask = torch.ones_like(generated_ids[:, :-1])
-        padded_mask[:, :inputs.attention_mask.shape[1]] = inputs.attention_mask
-        self.model(input_ids=generated_ids[:, :-1], pixel_values=inputs.pixel_values, attention_mask=padded_mask,
-                   output_attentions=self.output_attentions, use_cache=False)
+        match self.model.name:
+            case "llava":  # A dirty hack to work around many api differences in the transformers library
+                padded_mask = torch.ones_like(generated_ids[:, :-1])
+                padded_mask[:, :inputs.attention_mask.shape[1]] = inputs.attention_mask
+                self.model(input_ids=generated_ids[:, :-1], pixel_values=inputs.pixel_values,
+                           attention_mask=padded_mask, output_attentions=self.output_attentions, use_cache=False)
 
-        return self.processor.batch_decode(generated_ids), generated_ids.tolist()
+            case "molmo":
+                self.model(input_ids=generated_ids[:, :-1], images=inputs.images,
+                           image_input_idx=inputs.image_input_idx, image_masks=inputs.image_masks,
+                           output_attentions=self.output_attentions)
+            case _:
+                raise NotImplementedError(f"Transparent model not implemented for {self.model.name}")
+
+
+        return self.processor.tokenizer.batch_decode(generated_ids), generated_ids.tolist(), num_generated_tokens
 
     def forward(self, images: list[torch.Tensor], texts: list[str], **kwargs) -> torch.Tensor:
 
@@ -45,7 +55,7 @@ class GenerativeWrapper(nn.Module):
         return self.model(**inputs, output_attentions=self.output_attentions, **kwargs, use_cache=False)
 
     def score_single_tokens(self, images: list[torch.Tensor], texts: list[str],
-                            candidates: list[str]) -> (torch.Tensor, list[list[int]]):
+                            candidates: list[str]) -> (torch.Tensor, list[list[int]], list[int]):
 
         labels = self.processor.tokenizer(candidates, add_special_tokens=False, return_tensors='pt',
                                           padding=False).input_ids.view(-1).to(device=self.device)
@@ -56,11 +66,12 @@ class GenerativeWrapper(nn.Module):
             dtype=self.dtype)
         logits = torch.softmax(self.model(**inputs, output_attentions=self.output_attentions, use_cache=False).logits,
                                dim=-1)
-        max_tokens =  logits[:, -1].argmax(-1).tolist()
+        max_tokens = logits[:, -1].argmax(-1).tolist()
         generated_ids = inputs.input_ids.tolist()
         for sample, token in zip(generated_ids, max_tokens):
             sample.append(token)
-        return logits[:, -1, labels], generated_ids
+        num_generated_tokens = [1] * len(texts)
+        return logits[:, -1, labels], generated_ids, num_generated_tokens
 
     def score_text(self, images: list[torch.Tensor], texts: list[str]) -> (torch.Tensor, dict[str, torch.Tensor]):
         inputs = self.processor(text=texts, images=images, return_tensors='pt', truncation=False, padding=True).to(

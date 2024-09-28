@@ -1,10 +1,10 @@
 import json
-import re
 from pathlib import Path
+import re
 
+from PIL import Image
 import torch
 import wandb
-from PIL import Image
 
 from datasets.base import BaseDataset, EvalWrapper
 from models.wrappers import GenerativeWrapper
@@ -126,11 +126,13 @@ class SEEDBenchSingleImageEval(EvalWrapper):
                 texts = [(f"{self.pre_prompt}{q}{self.mid_prompt}"
                           f"A. {cand[0]}\nB. {cand[1]}\nC. {cand[2]}\nD. {cand[3]}\n"
                           f"{self.post_prompt}") for q, cand in zip(questions, choices)]
-                scores, generated_ids = model.score_single_tokens(images, texts, ['A', 'B', 'C', 'D'])
+                scores, generated_ids, num_generated_tokens = model.score_single_tokens(images, texts,
+                                                                                        ['A', 'B', 'C', 'D'])
                 predictions = scores.argmax(-1).cpu()
             case "gen":
                 texts = [self.prompt] * batch_size
-                generated_text, generated_ids = model.generate(images, texts, self.generation_config)
+                generated_text, generated_ids, num_generated_tokens = model.generate(images, texts,
+                                                                                     self.generation_config)
                 predictions = answers  # Will always result in accuracy 1
                 scores = None
             case _:
@@ -139,4 +141,5 @@ class SEEDBenchSingleImageEval(EvalWrapper):
         for callback in self.callbacks:
             callback(model, idx, texts, answers, predictions, scores)
 
-        return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, generated_ids)
+        return EvaluationResult(batch_size, idx.tolist(), texts, predictions, answers, generated_ids,
+                                num_generated_tokens)
