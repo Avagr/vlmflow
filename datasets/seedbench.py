@@ -82,7 +82,7 @@ class SEEDBenchCollate:
 
 class SEEDBenchSingleImageEval(EvalWrapper):
 
-    def __init__(self, prompt, device, eval_method="abcd", generation_config=None):
+    def __init__(self, prompt, eval_method="abcd", generation_config=None):
         """
         Supports the following scoring methods:
 
@@ -104,7 +104,6 @@ class SEEDBenchSingleImageEval(EvalWrapper):
             self.prompt = prompt
             assert generation_config is not None, "Generation config must be provided for 'gen' eval method"
             self.generation_config = generation_config
-        self.device = device
         self.eval_method = eval_method
         self.callbacks = []
 

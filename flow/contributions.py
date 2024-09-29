@@ -63,7 +63,7 @@ def get_mlp_contributions(
     """
 
     contributions = get_contributions(
-        torch.stack((mlp_out, resid_mid)), resid_post, distance_norm
+        torch.stack((mlp_out.cpu(), resid_mid.cpu())), resid_post.cpu(), distance_norm
     )
     return contributions[0], contributions[1]
 
@@ -160,9 +160,9 @@ def get_attention_contributions_efficiently(model, layer, batch_i, n_tokens, n_h
             decomposed_attn,
             "pos key_pos head d_model -> key_pos head pos d_model",
         )
-        distances.append(pairwise_distances(rearranged, whole, p=distance_norm))
+        distances.append(pairwise_distances(rearranged, whole.to(rearranged.device), p=distance_norm))
     distance = torch.cat(distances, dim=1).flatten(start_dim=0, end_dim=1)
-    distance = torch.cat([distance, torch.nn.functional.pairwise_distance(one_off, whole, p=distance_norm)],
+    distance = torch.cat([distance, torch.nn.functional.pairwise_distance(one_off.to(whole.device), whole, p=distance_norm)],
                          dim=0).unsqueeze(1)
     whole_norm = torch.norm(whole, p=distance_norm, dim=-1)
     distance = (whole_norm - distance).clip(min=1e-5)

@@ -1,15 +1,9 @@
-from PIL import Image
 from graph_tool import Graph, PropertyMap  # noqa
 import graph_tool.all as gt
-from graph_tool.clustering import local_clustering
-from graph_tool.util import find_vertex
-from matplotlib import pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from flow.analysis import LocalClusteringCoefficient
 from ui import contribution_graph
-from utils.misc import plot_image_with_heatmap
 from utils.streamlit import *
 
 if __name__ == "__main__":
@@ -26,7 +20,8 @@ if __name__ == "__main__":
     def reset_state():
         st.session_state.clear()
 
-    run_dirs =[
+
+    run_dirs = [
         "WhatsUp_A/llava_base_2024_09_14-22_49_27",
         "WhatsUp_A/llava_gen_2024_09_22-23_12_59",
         "WhatsUp_B/llava_base_2024_09_14-22_49_28",
@@ -68,12 +63,19 @@ if __name__ == "__main__":
     st.set_page_config(layout="wide")
     st.markdown(margins_css, unsafe_allow_html=True)
 
-    model_name = "llava-hf/llava-1.5-13b-hf"
-    processor = load_processor(model_name)
-    print("Loaded processor")
-
     base_dir = "/home/projects/shimon/agroskin/projects/vlmflow/results"
     run_dir = st.selectbox("Run Directory", run_dirs, index=20, on_change=st.session_state.clear)
+
+    if 'llava' in run_dir:
+        model_name = 'llava'
+        processor = load_processor("llava-hf/llava-1.5-13b-hf")
+    elif 'molmo' in run_dir:
+        model_name = 'molmo'
+        processor = load_processor("allenai/Molmo-72B-0924")
+
+    print("Loaded processor")
+
+
     table, node_layers, centrality_results, graph_metrics = read_metric_results(f"{base_dir}/{run_dir}")
     print("Loaded metrics")
     image_dir = get_image_dir(run_dir)
@@ -187,12 +189,15 @@ if __name__ == "__main__":
         )
         fig.add_trace(go.Surface(z=contrib_mean, surfacecolor=contrib_mean, showscale=False), row=1, col=1)
         fig.add_trace(go.Surface(z=contrib_len, surfacecolor=contrib_len, showscale=False), row=1, col=2)
-        fig.add_trace(go.Surface(z=txt_centrality_mean, surfacecolor=txt_centrality_mean, showscale=False), row=2, col=1)
-        fig.add_trace(go.Surface(z=img_centrality_mean, surfacecolor=img_centrality_mean, showscale=False), row=2, col=2)
+        fig.add_trace(go.Surface(z=txt_centrality_mean, surfacecolor=txt_centrality_mean, showscale=False), row=2,
+                      col=1)
+        fig.add_trace(go.Surface(z=img_centrality_mean, surfacecolor=img_centrality_mean, showscale=False), row=2,
+                      col=2)
         fig.add_trace(go.Surface(z=clustering_coeffs_mean, surfacecolor=clustering_coeffs_mean, showscale=False), row=3,
                       col=1)
 
-        xaxis_config = {'title': 'Token', 'tickvals': list(range(len(stringified_token))), 'ticktext': stringified_token,
+        xaxis_config = {'title': 'Token', 'tickvals': list(range(len(stringified_token))),
+                        'ticktext': stringified_token,
                         'tickfont': {'size': 14}}
 
         scene_layout = {'yaxis': {'title': 'Layer'}, 'xaxis': xaxis_config, 'zaxis': {'title': 'Value'},
@@ -214,18 +219,21 @@ if __name__ == "__main__":
         )
 
         # Plot for the 2d case instead of 3d
-        fig.add_trace(go.Scatter(y=contrib_mean.squeeze(), mode='lines+markers', name='Image Contribution'), row=1, col=1)
+        fig.add_trace(go.Scatter(y=contrib_mean.squeeze(), mode='lines+markers', name='Image Contribution'), row=1,
+                      col=1)
         fig.add_trace(go.Scatter(y=contrib_len.squeeze(), mode='lines+markers', name='Number of Nodes'), row=1, col=2)
-        fig.add_trace(go.Scatter(y=txt_centrality_mean.squeeze(), mode='lines+markers', name='Text Centrality'), row=2, col=1)
-        fig.add_trace(go.Scatter(y=img_centrality_mean.squeeze(), mode='lines+markers', name='Image Centrality'), row=2, col=2)
-        fig.add_trace(go.Scatter(y=clustering_coeffs_mean.squeeze(), mode='lines+markers', name='Local Clustering Coefficient'), row=3, col=1)
+        fig.add_trace(go.Scatter(y=txt_centrality_mean.squeeze(), mode='lines+markers', name='Text Centrality'), row=2,
+                      col=1)
+        fig.add_trace(go.Scatter(y=img_centrality_mean.squeeze(), mode='lines+markers', name='Image Centrality'), row=2,
+                      col=2)
+        fig.add_trace(
+            go.Scatter(y=clustering_coeffs_mean.squeeze(), mode='lines+markers', name='Local Clustering Coefficient'),
+            row=3, col=1)
 
         fig.update_layout(
             width=1800,
             height=1800,
         )
-
-
 
     st.plotly_chart(fig)
 
@@ -233,7 +241,8 @@ if __name__ == "__main__":
 
     fig = make_subplots(rows=1, cols=2, subplot_titles=("Jaccard Similarity", "Global Clustering Coefficient"))
 
-    fig.add_trace(go.Scatter(x=list(range(len(js))), y=js, mode='lines+markers', name='Jaccard Similarity'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=list(range(len(js))), y=js, mode='lines+markers', name='Jaccard Similarity'), row=1,
+                  col=1)
     # fig.add_trace(go.Scatter(x=list(range(len(global_clustering_coeffs))), y=global_clustering_coeffs, mode='lines+markers',
     #                          name='Global Clustering Coefficient'), row=1, col=2)
 

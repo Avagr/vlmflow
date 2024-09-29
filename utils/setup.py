@@ -17,7 +17,7 @@ from models.wrappers import GenerativeWrapper
 from utils.callbacks import GraphTensorCallback, LogitLensCallback, ResidualsByLayerCallback, ImageBoundariesCallback
 
 
-def create_model(cfg, device):
+def create_model(cfg):
     match cfg.model.dtype:
         case "bfloat16":
             dtype = torch.bfloat16
@@ -33,36 +33,38 @@ def create_model(cfg, device):
 
             llava = LlavaForConditionalGeneration.from_pretrained(cfg.model.config_name,
                                                                   torch_dtype=dtype,
-                                                                  # low_cpu_mem_usage=True,
+                                                                  low_cpu_mem_usage=True,
+                                                                  device_map='auto',
                                                                   attn_implementation=cfg.model.attn_impl)
 
             processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
-            model = TransparentLlava(cfg.model.name, llava, processor, device, dtype)
-            model = GenerativeWrapper(processor, model, device, dtype, output_attentions=True)
+            model = TransparentLlava(cfg.model.name, llava, processor, llava.device, dtype)
+            model = GenerativeWrapper(processor, model, llava.device, dtype, output_attentions=True)
         case "molmo":
             molmo = MolmoForCausalLM.from_pretrained(
                 cfg.model.config_name,
                 torch_dtype=dtype,
                 device_map='auto',
+                low_cpu_mem_usage=True,
             )
             molmo.model.vision_backbone = molmo.model.vision_backbone.to(torch.float)
             processor =  MolmoProcessor.from_pretrained(cfg.model.config_name, trust_remote_code=True)
-            model = TransparentMolmo(cfg.model.name, molmo, processor, device, dtype)
-            model = GenerativeWrapper(processor, model, device, dtype, output_attentions=True)
+            model = TransparentMolmo(cfg.model.name, molmo, processor, molmo.device, dtype)
+            model = GenerativeWrapper(processor, model, molmo.device, dtype, output_attentions=True)
 
         case _:
             raise ValueError(f"Unsupported model '{cfg.model.name}'")
 
-    return model.to(device)
+    return model
 
 
-def create_eval_task(cfg, device):
+def create_eval_task(cfg):
     sampling_config = GenerationConfig(**cfg.sampling_params)
     match cfg.task.name:
         case "SEED-Bench-2":
             dataset = SEEDBenchSingleImage(cfg.task.task_num, Path(cfg.task.json_path), Path(cfg.task.image_root))
             collate = SEEDBenchCollate()
-            wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, device, cfg.task.eval_method, sampling_config)
+            wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
 
         case "WhatsUp":
             if cfg.task.part == 'A':
@@ -73,17 +75,17 @@ def create_eval_task(cfg, device):
                 raise ValueError(f"Unsupported What's Up part '{cfg.task.part}'")
             dataset = WhatsUp(Path(cfg.task.image_root), json_path, permute_options=cfg.task.permute)
             collate = WhatsUpCollate()
-            wrapper = WhatsUpEval(cfg.prompt.text, device, cfg.task.eval_method, sampling_config)
+            wrapper = WhatsUpEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
 
         case "GQA":
             dataset = GQA(Path(cfg.task.test_question_file), Path(cfg.task.img_dir))
             collate = GQACollate()
-            wrapper = GQAEval(cfg.prompt.text, device, cfg.task.eval_method, sampling_config)
+            wrapper = GQAEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
 
         case "UnlabeledCOCO":
             dataset = UnlabeledCoco(Path(cfg.task.img_dir), Path(cfg.task.img_descriptions_file), cfg.task.dataset_size)
             collate = UnlabeledCocoCollate()
-            wrapper = UnlabeledCocoEval(cfg.prompt.text, device, sampling_config)
+            wrapper = UnlabeledCocoEval(cfg.prompt.text, sampling_config)
 
         case "MMVP":
             dataset = MMVP(Path(cfg.task.csv_path), Path(cfg.task.img_dir))

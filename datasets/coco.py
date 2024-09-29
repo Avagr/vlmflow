@@ -52,9 +52,8 @@ class UnlabeledCocoCollate:
 
 class UnlabeledCocoEval(EvalWrapper):
 
-    def __init__(self, prompt, device, generation_config):
+    def __init__(self, prompt, generation_config):
         self.prompt = prompt
-        self.device = device
         self.generation_config = generation_config
         self.callbacks = []
 

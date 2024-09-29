@@ -168,7 +168,7 @@ class TransparentLlava(TransparentLlm):
 
         pattern = self.last_run_attentions[layer]
         pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
-        pattern = pattern[batch_i, head_i].to(v.dtype)
+        pattern = pattern[batch_i, head_i].to(dtype=v.dtype, device=v.device)
         z = einsum(
             "key_pos d_head, "
             "query_pos key_pos -> "
@@ -198,7 +198,7 @@ class TransparentLlava(TransparentLlm):
 
         pattern = self.last_run_attentions[layer]
         pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
-        pattern = pattern[batch_i, head_start:head_end].to(v.dtype)
+        pattern = pattern[batch_i, head_start:head_end].to(dtype=v.dtype, device=v.device)
         z = einsum(
             "key_pos head d_head, "
             "head query_pos key_pos -> "
@@ -214,7 +214,7 @@ class TransparentLlava(TransparentLlm):
             "pos key_pos head d_head, "
             "head d_head d_model -> "
             "pos key_pos head d_model",
-            z,
+            z.to(dtype=o_weight.dtype, device=o_weight.device),
             o_weight
         )
         return decomposed_attn
@@ -229,7 +229,7 @@ class TransparentLlava(TransparentLlm):
         # hook_v = hook_v.repeat_interleave(num_head_groups, dim=-2)
         pattern = self.last_run_attentions[layer]
         pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
-        pattern = pattern[batch_i].to(v.dtype)
+        pattern = pattern[batch_i].to(dtype=v.dtype, device=v.device)
         z = einsum(
             "key_pos head d_head, "
             "head query_pos key_pos -> "
@@ -245,7 +245,7 @@ class TransparentLlava(TransparentLlm):
             z,
             self.layers[layer].self_attn.o_proj.weight.T.view(self.n_heads,
                                                               self.d_model // self.n_heads,
-                                                              self.d_model),
+                                                              self.d_model).to(device=v.device),
         )
         return decomposed_attn
 
@@ -431,7 +431,7 @@ class TransparentMolmo(TransparentLlm):
 
         pattern = self.last_run_attentions[layer]
         pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
-        pattern = pattern[batch_i, head_start:head_end].to(v.dtype)
+        pattern = pattern[batch_i, head_start:head_end].to(dtype=v.dtype, device=v.device)
         z = einsum(
             "key_pos head d_head, "
             "head query_pos key_pos -> "
@@ -446,7 +446,7 @@ class TransparentMolmo(TransparentLlm):
             "pos key_pos head d_head, "
             "head d_head d_model -> "
             "pos key_pos head d_model",
-            z,
+            z.to(dtype=o_weight.dtype, device=o_weight.device),
             o_weight
         )
         return decomposed_attn

@@ -23,7 +23,6 @@ def run(cfg: DictConfig):
 
     set_random_seed(cfg.seed)
 
-    device = cfg.device
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
@@ -50,8 +49,8 @@ def run(cfg: DictConfig):
     run_folder = Path(cfg.results_path) / f"{cfg.task.display_name}" / f"{cfg.name}_{timestamp()}"
     run_folder.mkdir(parents=True, exist_ok=True)
 
-    dataset, wrapper, collate_fn = create_eval_task(cfg, device)
-    model = create_model(cfg, device)
+    dataset, wrapper, collate_fn = create_eval_task(cfg)
+    model = create_model(cfg)
 
     cfg.model_size = count_parameters(model)
     wandb.init(id=run_id, resume="must" if cfg.resume_wandb_id is not None else "never",

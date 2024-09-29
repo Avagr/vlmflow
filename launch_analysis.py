@@ -29,7 +29,6 @@ def run(cfg: DictConfig):
 
     base_dir = Path(cfg.results_dir) / cfg.run_dir
     results_table = pd.read_parquet(base_dir / "results_table.parquet")
-    processor = AutoProcessor.from_pretrained(cfg.model.processor_path, trust_remote_code=True)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     vertex_metrics, graph_metrics = create_metrics(cfg)
