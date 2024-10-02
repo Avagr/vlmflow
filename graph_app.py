@@ -22,6 +22,8 @@ if __name__ == "__main__":
 
 
     run_dirs = [
+        "Unlabeled_COCO/molmo_72b_merged_600",
+        "Unlabeled_COCO/molmo_test_2024_09_29-01_53_26",
         "WhatsUp_A/llava_base_2024_09_14-22_49_27",
         "WhatsUp_A/llava_gen_2024_09_22-23_12_59",
         "WhatsUp_B/llava_base_2024_09_14-22_49_28",
@@ -44,7 +46,7 @@ if __name__ == "__main__":
         "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12",
         "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31",
         "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57",
-        "Unlabeled_COCO/molmo_test_2024_09_29-01_53_26"
+
     ]
 
     margins_css = """
@@ -64,7 +66,7 @@ if __name__ == "__main__":
     st.markdown(margins_css, unsafe_allow_html=True)
 
     base_dir = "/home/projects/shimon/agroskin/projects/vlmflow/results"
-    run_dir = st.selectbox("Run Directory", run_dirs, index=20, on_change=st.session_state.clear)
+    run_dir = st.selectbox("Run Directory", run_dirs, index=0, on_change=st.session_state.clear)
 
     if 'llava' in run_dir:
         model_name = 'llava'
@@ -72,9 +74,9 @@ if __name__ == "__main__":
     elif 'molmo' in run_dir:
         model_name = 'molmo'
         processor = load_processor("allenai/Molmo-72B-0924")
-
+    else:
+        raise ValueError(f"Unsupported model made '{run_dir}'")
     print("Loaded processor")
-
 
     table, node_layers, centrality_results, graph_metrics = read_metric_results(f"{base_dir}/{run_dir}")
     print("Loaded metrics")
@@ -85,15 +87,17 @@ if __name__ == "__main__":
     print("Processed centrality")
 
     with st.sidebar:
-        table_index = st.number_input("Table index", value=883, min_value=0, max_value=len(table) - 1)
+        table_index = st.number_input("Table index", value=0, min_value=0, max_value=len(table) - 1)
         table_row = table.iloc[table_index]
-        st.write(processor.decode(table_row.generated_ids))
+        st.write(processor.tokenizer.decode(table_row.generated_ids, skip_special_tokens=True))
 
     simple_graphs, full_graphs = read_graphs(f"{base_dir}/{run_dir}", table_index, len(node_layers[table_index]))
 
     print("Read graphs")
 
-    tokens, img_beg, img_end = tokens_to_strings(table_row.generated_ids, processor)
+    img_beg, img_end = table_row.img_begin, table_row.img_end
+
+    tokens = tokens_to_strings(table_row.generated_ids, model_name, processor)
 
     if 'current_token' not in st.session_state:
         st.session_state.current_token = len(tokens) - 1
@@ -170,8 +174,7 @@ if __name__ == "__main__":
     #     heatmap_overlay = plot_image_with_heatmap(Image.open(img_path), heatmap, ax=ax)
     #     st.pyplot(fig)
 
-    tokenized_prompt = processor.tokenizer(table_row.prompt)["input_ids"]
-    stringified_token = processor.tokenizer.convert_ids_to_tokens(table_row.generated_ids[len(tokenized_prompt):])
+    stringified_tokens = tokens[-table_row.num_generated_tokens:]
 
     contrib_mean, contrib_len = plot_for_item([g.vp.img_contrib.a for g in simple_graphs], node_layers[table_index])
     txt_centrality_mean, _ = plot_for_item(txt_centrality[table_index], node_layers[table_index])
@@ -196,8 +199,8 @@ if __name__ == "__main__":
         fig.add_trace(go.Surface(z=clustering_coeffs_mean, surfacecolor=clustering_coeffs_mean, showscale=False), row=3,
                       col=1)
 
-        xaxis_config = {'title': 'Token', 'tickvals': list(range(len(stringified_token))),
-                        'ticktext': stringified_token,
+        xaxis_config = {'title': 'Token', 'tickvals': list(range(len(stringified_tokens))),
+                        'ticktext': stringified_tokens,
                         'tickfont': {'size': 14}}
 
         scene_layout = {'yaxis': {'title': 'Layer'}, 'xaxis': xaxis_config, 'zaxis': {'title': 'Value'},
@@ -249,9 +252,9 @@ if __name__ == "__main__":
     fig.update_layout(
         width=1800,
         title='Jaccard Similarity and Global Clustering Coefficient',
-        xaxis1=dict(title='Sample Index', tickvals=list(range(len(stringified_token))), ticktext=stringified_token,
+        xaxis1=dict(title='Sample Index', tickvals=list(range(len(stringified_tokens))), ticktext=stringified_tokens,
                     tickangle=-60),
-        xaxis2=dict(title='Sample Index', tickvals=list(range(len(stringified_token))), ticktext=stringified_token,
+        xaxis2=dict(title='Sample Index', tickvals=list(range(len(stringified_tokens))), ticktext=stringified_tokens,
                     tickangle=-60),
         yaxis=dict(title='Value')
     )

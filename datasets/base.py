@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 class BaseDataset(Dataset, abc.ABC):
     table_columns = None
 
+
     @abc.abstractmethod
     def table_repr(self, idx, prediction, img_as_object=True):
         raise NotImplementedError

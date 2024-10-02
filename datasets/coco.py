@@ -13,13 +13,15 @@ from utils.eval import EvaluationResult
 class UnlabeledCoco(BaseDataset):
     table_columns = ['idx', 'image', 'generated_caption']
 
-    def __init__(self, img_dir: Path, img_descriptions_file: Path, dataset_size: int = None):
+    def __init__(self, img_dir: Path, img_descriptions_file: Path, dataset_from: int = None, dataset_to: int = None):
         super().__init__()
         self.img_dir = img_dir
+        self.dataset_from = dataset_from
+        self.dataset_to = dataset_to
         with open(img_descriptions_file, 'r') as f:
             self.data = json.load(f)['images']
-        if dataset_size is not None:
-            self.data = self.data[:dataset_size]
+        if dataset_from is not None and dataset_to is not None:
+            self.data = self.data[dataset_from:dataset_to]
 
     def __len__(self):
         return len(self.data)
@@ -28,10 +30,11 @@ class UnlabeledCoco(BaseDataset):
         img_data = self.data[idx]
         img_path = self.img_dir / img_data['file_name']
         image = Image.open(img_path).convert('RGB')
-        return idx, image
+        return idx + self.dataset_from, image
 
     def table_repr(self, idx, generated_caption, img_as_object=True):
-        img_data = self.data[idx]
+        actual_idx = idx - self.dataset_from
+        img_data = self.data[actual_idx]
         img_path = self.img_dir / img_data['file_name']
         return [
             idx,

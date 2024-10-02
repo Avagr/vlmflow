@@ -1,6 +1,7 @@
 name: "UnlabeledCOCO"
 img_descriptions_file: /home/projects/bagon/shared/coco/annotations/image_info_unlabeled2017.json
 img_dir: /home/projects/bagon/shared/coco/unlabeled2017
-dataset_size: 3000
+dataset_from: 0   # 0-indexed
+dataset_to: 150   # non-inclusive
 display_name: Unlabeled_COCO
 eval_method: gen

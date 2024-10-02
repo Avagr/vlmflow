@@ -111,7 +111,7 @@ class TransparentLlava(TransparentLlm):
         res = []
         img_count = 0
         for tok in tokens:
-            if tok == TransparentLlava.mage_token_id:
+            if tok == TransparentLlava.image_token_id:
                 res.append(f"I_{img_count}")
                 img_count += 1
             else:

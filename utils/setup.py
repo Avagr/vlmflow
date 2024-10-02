@@ -83,7 +83,8 @@ def create_eval_task(cfg):
             wrapper = GQAEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
 
         case "UnlabeledCOCO":
-            dataset = UnlabeledCoco(Path(cfg.task.img_dir), Path(cfg.task.img_descriptions_file), cfg.task.dataset_size)
+            dataset = UnlabeledCoco(Path(cfg.task.img_dir), Path(cfg.task.img_descriptions_file), cfg.task.dataset_from,
+                                    cfg.task.dataset_to)
             collate = UnlabeledCocoCollate()
             wrapper = UnlabeledCocoEval(cfg.prompt.text, sampling_config)
 

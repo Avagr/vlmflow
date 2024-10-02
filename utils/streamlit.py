@@ -8,6 +8,8 @@ import streamlit as st
 
 from transformers import AutoProcessor
 
+from models.transparent_models import TransparentLlava, TransparentMolmo
+
 # An array of simple and distinct colors (names) for the nodes
 
 colors = [
@@ -95,37 +97,28 @@ def process_centrality(centrality):
 
             total_centrality[-1][-1] = total_centrality[-1][-1] / total_centrality[-1][-1].max()
 
-            txt_centrality[-1].append(txt_tok / txt_tok.max())
-            img_centrality[-1].append(img_tok / img_tok.max())
-            txt_only[-1][-1] = txt_only[-1][-1] / txt_tok.max()
-            img_only[-1][-1] = img_only[-1][-1] / img_tok.max()
+            txt_centrality[-1].append((txt_tok / txt_tok.max()) if txt_tok.max() != 0 else txt_tok)
+            img_centrality[-1].append((img_tok / img_tok.max()) if img_tok.max() != 0 else img_tok)
+            txt_only[-1][-1] = (txt_only[-1][-1] / txt_tok.max()) if txt_tok.max() != 0 else txt_only[-1][-1]
+            img_only[-1][-1] = (img_only[-1][-1] / img_tok.max()) if img_tok.max() != 0 else img_only[-1][-1]
 
     return txt_centrality, img_centrality, total_centrality, intersection_centrality, txt_only, img_only, jaccard_similarity
 
 
 @st.cache_resource
 def load_processor(model_id):
-    return AutoProcessor.from_pretrained(model_id)
+    return AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
 
 
 @st.cache_data
-def tokens_to_strings(token_ids, _processor):
-    res = []
-    img_beg, img_end = None, None
-    for i, tok in enumerate(token_ids):
-        if tok == 32000:
-            res.extend([f"I_{img_count}" for img_count in range(576)])
-            img_beg = i
-            img_end = i + 576
-        else:
-            str_repr = _processor.tokenizer.decode(tok)
-            match str_repr:
-                case '':
-                    str_repr = "_"
-                case '\n':
-                    str_repr = "\\n"
-            res.append(str_repr)
-    return res, img_beg, img_end
+def tokens_to_strings(token_ids, model_name, _processor):
+    match model_name:
+        case "llava":
+            return TransparentLlava.tokens_to_strings(token_ids, _processor.tokenizer)
+        case "molmo":
+            return TransparentMolmo.tokens_to_strings(token_ids, _processor.tokenizer)
+        case _:
+            raise ValueError(f"Unsupported model '{model_name}'")
 
 
 @st.cache_resource(hash_funcs={Graph: id})
@@ -156,7 +149,7 @@ def create_node_style_map(graphs: list[Graph], metrics: list[PropertyMap | np.nd
                 for v, layer_num, token_num in simple_graph.get_vertices(
                         vprops=[simple_graph.vp.layer_num, simple_graph.vp.token_num]):
                     if layer_num > 0:
-                        metric_value = metric[v]
+                        metric_value = metric[v].item()
                         color = f"rgb({int(255 * (1 - metric_value))}, {int(255 * (1 - metric_value))}, 255)"
                         style_map[-1].append([f"{layer_num - 1}_{token_num}", [color, metric_value]])
         case "cluster":
@@ -182,7 +175,7 @@ def plot_for_item(metrics, nodes):
     for n, metric in zip(nodes, metrics):
         mean.append([])
         m_len.append([])
-        for layer in range(41):
+        for layer in range(len(n)):
             mean[-1].append(np.mean(metric[n[layer]]))
             m_len[-1].append(len(n[layer]))
 

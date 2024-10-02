@@ -55,13 +55,13 @@ class EvaluationResult:
     def to_table(self, dataset: BaseDataset) -> wandb.Table:
         matches = self.matches()
         table_data = [
-            dataset.table_repr(i, self.predictions[i], img_as_object=False)
+            dataset.table_repr(self.dataset_ids[i], self.predictions[i], img_as_object=False)
             + [self.texts[i]]
             + [self.generated_ids[i]]
             + [matches[i]]
             + [self.num_generated_tokens[i]]
             + [self.scores[k][i] for k in sorted(self.scores.keys())]
-            for i in self.dataset_ids]
+            for i in range(len(self.dataset_ids))]
         return wandb.Table(
             data=table_data,
             columns=dataset.table_columns + ['prompt', 'generated_ids', 'match', 'num_generated_tokens'] + sorted(self.scores.keys()),

@@ -28,7 +28,7 @@ def run(cfg: DictConfig):
         print(OmegaConf.to_yaml(cfg))
 
     base_dir = Path(cfg.results_dir) / cfg.run_dir
-    results_table = pd.read_parquet(base_dir / "results_table.parquet")
+    results_table = pd.read_parquet(base_dir / "results_table.parquet") 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     vertex_metrics, graph_metrics = create_metrics(cfg)

@@ -62,7 +62,7 @@ class MolmoProcessorKwargs(ProcessingKwargs, total=False):
     images_kwargs: MolmoImagesKwargs
     _defaults = {
         "images_kwargs": {
-            "max_crops": 12,
+            "max_crops": 7,
             "overlap_margins": [4, 4],
             "base_image_input_size": [336, 336],
             "image_token_length_w": 12,

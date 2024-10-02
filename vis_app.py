@@ -16,7 +16,7 @@ from utils.streamlit import load_processor
 if __name__ == "__main__":
 
     st.set_page_config(layout="wide")
-    load_from_disk = st.checkbox("Load from disk", value=True)
+    load_from_disk = st.checkbox("Load from disk", value=False)
 
 
     @st.cache_resource
@@ -41,11 +41,18 @@ if __name__ == "__main__":
         img_difference = {run_dir: [] for run_dir in run_dirs}
         densities = {run_dir: [] for run_dir in run_dirs}
         num_cross_modal_edges = {run_dir: [] for run_dir in run_dirs}
-        num_cross_modal_edges_centrality = {run_dir: [] for run_dir in run_dirs}
+        # num_cross_modal_edges_centrality = {run_dir: [] for run_dir in run_dirs}
         global_clustering_coefficient = {run_dir: [] for run_dir in run_dirs}
         metrics = {run_dir: [] for run_dir in run_dirs}
 
-        num_layers = 41
+        if "llava" in run_dirs:
+            num_layers = 41
+        elif "molmo_72b" in run_dirs:
+            num_layers = 81
+        elif "molmo" in run_dirs:
+            num_layers = 29
+        else:
+            raise ValueError("Unknown model")
         reduction = partial(np.mean, axis=0)
 
         for run_dir, (table, node_pos, contrib, centrality, clustering, graph_metrics) in dataset_metrics.items():
@@ -55,7 +62,7 @@ if __name__ == "__main__":
                 img_difference[run_dir].extend(graph_metrics["img_difference"][idx])
                 densities[run_dir].extend(graph_metrics["density"][idx])
                 num_cross_modal_edges[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
-                num_cross_modal_edges_centrality[run_dir].extend(graph_metrics["num_cross_modal_edges_centrality"][idx])
+                # num_cross_modal_edges_centrality[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
                 global_clustering_coefficient[run_dir].extend(graph_metrics["global_clustering_coefficient"][idx])
 
                 for (layer_num,
@@ -71,7 +78,8 @@ if __name__ == "__main__":
                         metrics[run_dir].append(np.zeros((num_layers, 4)))
                         continue # Skip empty layers
 
-                    node_props = np.stack((img_contrib, img_centrality / num_img, txt_centrality / num_txt,
+                    node_props = np.stack((img_contrib, img_centrality / (num_img if num_img > 0 else 1),
+                                           txt_centrality / (num_txt if num_txt > 0 else 1),
                                            local_clustering_coefficient), axis=1)
                     grouped = npi.group_by(keys=layer_num, values=node_props, reduction=reduction)
                     if any((grouped[i][0] > i for i in range(num_layers))):
@@ -85,35 +93,38 @@ if __name__ == "__main__":
         local_clustering_coefficients = {run_dir: np.array(m[:, :, 3]) for run_dir, m in metrics.items()}
 
         return (jaccard_index, txt_difference, img_difference, densities, num_cross_modal_edges,
-                num_cross_modal_edges_centrality, global_clustering_coefficient, img_contribs, img_centralities,
+                 global_clustering_coefficient, img_contribs, img_centralities,
                 txt_centralities, local_clustering_coefficients)
 
 
     processor = load_processor("llava-hf/llava-1.5-13b-hf")
 
     run_dirs = {
-        "WhatsUp_A/llava_base_2024_09_14-22_49_27": "WhatsUp A",
-        "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
-        "WhatsUp_B/llava_base_2024_09_14-22_49_28": "WhatsUp B",
-        "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
-        "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11": "SEED Scene Understanding",
-        "SEED-Bench-2_Part_2/llava_base_2024_09_14-22_52_11": "SEED Instance Identity",
-        "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12": "SEED Instance Attributes",
-        "SEED-Bench-2_Part_4/llava_base_2024_09_14-22_52_18": "SEED Instance Location",
-        "SEED-Bench-2_Part_5/llava_base_2024_09_14-22_52_17": "SEED Instance Count",
-        "SEED-Bench-2_Part_6/llava_base_2024_09_14-22_52_14": "SEED Spatial Relation",
-        "SEED-Bench-2_Part_7/llava_base_2024_09_14-22_52_15": "SEED Instance Interaction",
-        "SEED-Bench-2_Part_8/llava_base_2024_09_14-22_52_15": "SEED Visual Reasoning",
-        "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17": "SEED Text Understanding",
-        "SEED-Bench-2_Part_10/llava_base_2024_09_14-22_52_17": "SEED Celebrity Recognition",
-        "SEED-Bench-2_Part_11/llava_base_2024_09_14-22_52_14": "SEED Landmark Recognition",
-        "SEED-Bench-2_Part_12/llava_base_2024_09_14-22_52_14": "SEED Chart Understanding",
-        "SEED-Bench-2_Part_13/llava_base_2024_09_14-22_52_14": "SEED Visual Referring Expression",
-        "SEED-Bench-2_Part_14/llava_base_2024_09_14-22_52_14": "SEED Science Knowledge",
-        "SEED-Bench-2_Part_15/llava_base_2024_09_14-22_52_15": "SEED Emotion Recognition",
-        "SEED-Bench-2_Part_16/llava_base_2024_09_14-22_52_21": "SEED Visual Mathematics",
-        "Unlabeled_COCO/llava_2000_2024_09_15-01_57_15": "COCO Captions",
-        "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57": "COCO Captions Reverse",
+        "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "COCO Molmo 7B Captions",
+        "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "COCO LLaVA 13B Captions",
+        "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
+        # "WhatsUp_A/llava_base_2024_09_14-22_49_27": "WhatsUp A",
+        # "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
+        # "WhatsUp_B/llava_base_2024_09_14-22_49_28": "WhatsUp B",
+        # "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
+        # "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11": "SEED Scene Understanding",
+        # "SEED-Bench-2_Part_2/llava_base_2024_09_14-22_52_11": "SEED Instance Identity",
+        # "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12": "SEED Instance Attributes",
+        # "SEED-Bench-2_Part_4/llava_base_2024_09_14-22_52_18": "SEED Instance Location",
+        # "SEED-Bench-2_Part_5/llava_base_2024_09_14-22_52_17": "SEED Instance Count",
+        # "SEED-Bench-2_Part_6/llava_base_2024_09_14-22_52_14": "SEED Spatial Relation",
+        # "SEED-Bench-2_Part_7/llava_base_2024_09_14-22_52_15": "SEED Instance Interaction",
+        # "SEED-Bench-2_Part_8/llava_base_2024_09_14-22_52_15": "SEED Visual Reasoning",
+        # "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17": "SEED Text Understanding",
+        # "SEED-Bench-2_Part_10/llava_base_2024_09_14-22_52_17": "SEED Celebrity Recognition",
+        # "SEED-Bench-2_Part_11/llava_base_2024_09_14-22_52_14": "SEED Landmark Recognition",
+        # "SEED-Bench-2_Part_12/llava_base_2024_09_14-22_52_14": "SEED Chart Understanding",
+        # "SEED-Bench-2_Part_13/llava_base_2024_09_14-22_52_14": "SEED Visual Referring Expression",
+        # "SEED-Bench-2_Part_14/llava_base_2024_09_14-22_52_14": "SEED Science Knowledge",
+        # "SEED-Bench-2_Part_15/llava_base_2024_09_14-22_52_15": "SEED Emotion Recognition",
+        # "SEED-Bench-2_Part_16/llava_base_2024_09_14-22_52_21": "SEED Visual Mathematics",
+        # "Unlabeled_COCO/llava_2000_2024_09_15-01_57_15": "COCO Captions",
+        # "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57": "COCO Captions Reverse",
     }
 
     colors = [
@@ -154,7 +165,7 @@ if __name__ == "__main__":
                 pickle.dump(processed_metrics, open("processed_metrics.pkl", "wb"))
 
 
-    (jaccard_index, txt_difference, img_difference, densities, num_cross_modal_edges, num_cross_modal_edges_centrality,
+    (jaccard_index, txt_difference, img_difference, densities, num_cross_modal_edges,
      global_clustering_coefficient, img_contribs, img_centralities, txt_centralities,
      local_clustering_coefficients) = processed_metrics
 
@@ -184,7 +195,7 @@ if __name__ == "__main__":
         fig.add_trace(go.Histogram(x=densities[run_dir], **hist_args), row=1, col=1)
         hist_args["showlegend"] = False
         fig.add_trace(go.Histogram(x=num_cross_modal_edges[run_dir], **hist_args), row=1, col=2)
-        fig.add_trace(go.Histogram(x=num_cross_modal_edges_centrality[run_dir], **hist_args), row=2, col=1)
+        # fig.add_trace(go.Histogram(x=num_cross_modal_edges_centrality[run_dir], **hist_args), row=2, col=1)
         fig.add_trace(go.Histogram(x=global_clustering_coefficient[run_dir], **hist_args), row=2, col=2)
 
     fig.update_xaxes(range=[0, 0.4], row=1, col=1)

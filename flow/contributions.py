@@ -107,7 +107,7 @@ def apply_threshold_and_renormalize(
     )
 
 @torch.compile
-def pairwise_distances(rearranged, whole, p):
+def pairwise_distances(rearranged, whole, p): 
     return torch.nn.functional.pairwise_distance(rearranged, whole.expand(rearranged.shape), p=p)
 
 
@@ -148,7 +148,7 @@ def get_contribution_matrices(
 
     return attn_contributions, res_attn_contributions, ffn_contributions, res_ffn_contributions
 
-
+ 
 def get_attention_contributions_efficiently(model, layer, batch_i, n_tokens, n_heads, distance_norm, head_batch_size=1):
     one_off = model.residual_in(layer)[batch_i].unsqueeze(0)
     whole = model.residual_after_attn(layer)[batch_i].unsqueeze(0)
