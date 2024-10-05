@@ -50,7 +50,7 @@ def contribution_graph(
     tokens: List[str],
     graphs_edge_lists,
     key: str,
-    node_style_map: Optional[dict[str, str]],
+    node_style_map: Optional[list[list]] = None,
 ) -> Optional[int]:
     """Create a new instance of contribution graph.
 

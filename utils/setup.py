@@ -129,6 +129,8 @@ def create_metrics(cfg) -> tuple[list[BaseVertexMetric], list[BaseGraphMetric]]:
     graph_metrics = []
     if cfg.graph_density:
         graph_metrics.append(GraphDensity())
+    if cfg.node_edge_densities:
+        graph_metrics.append(NodeEdgeDensities())
     if cfg.cross_modal_edges:
         graph_metrics.append(CrossModalEdges())
     if cfg.global_clustering_coefficient:

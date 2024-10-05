@@ -1,3 +1,5 @@
+import json
+
 from graph_tool import Graph, PropertyMap  # noqa
 import graph_tool.all as gt
 import plotly.graph_objects as go
@@ -22,8 +24,10 @@ if __name__ == "__main__":
 
 
     run_dirs = [
+        "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54",
         "Unlabeled_COCO/molmo_72b_merged_600",
-        "Unlabeled_COCO/molmo_test_2024_09_29-01_53_26",
+        "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31",
+        "Unlabeled_COCO/llava_3000_copy",
         "WhatsUp_A/llava_base_2024_09_14-22_49_27",
         "WhatsUp_A/llava_gen_2024_09_22-23_12_59",
         "WhatsUp_B/llava_base_2024_09_14-22_49_28",
@@ -43,8 +47,7 @@ if __name__ == "__main__":
         "SEED-Bench-2_Part_7/llava_base_2024_09_14-22_52_15",
         "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17",
         "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11",
-        "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12",
-        "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31",
+        "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12",  
         "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57",
 
     ]
@@ -107,50 +110,69 @@ if __name__ == "__main__":
     local_clustering_coeffs = [np.nan_to_num(g.vp.local_clustering.a) for g in simple_graphs]
     # print(local_clustering_coeffs)
 
-    match st.selectbox("Visualize metric",
-                       ["Nothing", "Modality Ratio", "Local Clustering", "Text Centrality", "Image Centrality",
-                        "Centrality Sum", "Centrality Intersection", "Text Centrality Difference",
-                        "Image Centrality Difference", "SBM Clustering", "Nested SBM Clustering"], index=1):
-        case "Modality Ratio":
-            node_style_map = create_node_style_map(simple_graphs,
-                                                   [g.vp.img_contrib.a for g in simple_graphs], "value")
-        case "Text Centrality":
-            node_style_map = create_node_style_map(simple_graphs, txt_centrality[table_index], "value")
-        case "Image Centrality":
-            node_style_map = create_node_style_map(simple_graphs, img_centrality[table_index], "value")
-        case "Local Clustering":
-            node_style_map = create_node_style_map(simple_graphs, local_clustering_coeffs, "value")
-        case "Centrality Sum":
-            node_style_map = create_node_style_map(simple_graphs, total_centrality[table_index], "value")
-        case "Centrality Intersection":
-            node_style_map = create_node_style_map(simple_graphs, intersection_centrality[table_index], "value")
-        case "Text Centrality Difference":
-            node_style_map = create_node_style_map(simple_graphs, txt_difference[table_index], "value")
-        case "Image Centrality Difference":
-            node_style_map = create_node_style_map(simple_graphs, img_difference[table_index], "value")
-        case "SBM Clustering":
-            clustering = min_block(simple_graphs)
-            node_style_map = create_node_style_map(simple_graphs, clustering, "cluster")
-        case "Nested SBM Clustering":
-            clustering = min_block(simple_graphs, nested=True)
-            i = st.number_input("Nested level", value=0, min_value=0, max_value=3)
-            clustering = [c.project_level(i).get_blocks() for c in clustering]
-            node_style_map = create_node_style_map(simple_graphs, clustering, "cluster")
-        case _:
-            node_style_map = None
+    if st.checkbox("Show Overgraph", value=False):
+        overgraph = gt.load_graph(f"{base_dir}/{run_dir}/overgraphs/overgraph_{table_index}.gt")
+        vertex_weights = json.load(open(f"{base_dir}/{run_dir}/overgraphs/vertex_weights_{table_index}.json", 'r'))
+        node_style_map = []
+        for v, weight in vertex_weights.items():
+            layer_num, token_num = map(int, v.split('_'))
+            if layer_num > 0:
+                value = weight / len(simple_graphs)
+                color = f"rgb({int(255 * (1 - value))}, {int(255 * (1 - value))}, 255)"
+                node_style_map.append([f"{layer_num - 1}_{token_num}", [color, value]])
+        graph_output = contribution_graph(
+            simple_graphs[0].gp.num_layers,
+            tokens,
+            [[] for _ in range(len(tokens) - 2)] + [get_edge_list(overgraph)],
+            key=f"overgraph_{run_dir}_{table_index}",
+            node_style_map=[node_style_map]
+        )
 
-    graph_output = contribution_graph(
-        simple_graphs[0].gp.num_layers,
-        tokens,
-        [[] for _ in range(num_before_graphs)] + [get_edge_list(graph) for graph in full_graphs],
-        key=f"graph_{run_dir}_{table_index}",
-        node_style_map=node_style_map
-    )
+    else:
+        match st.selectbox("Visualize metric",
+                           ["Nothing", "Modality Ratio", "Local Clustering", "Text Centrality", "Image Centrality",
+                            "Centrality Sum", "Centrality Intersection", "Text Centrality Difference",
+                            "Image Centrality Difference", "SBM Clustering", "Nested SBM Clustering"], index=1):
+            case "Modality Ratio":
+                node_style_map = create_node_style_map(simple_graphs,
+                                                       [g.vp.img_contrib.a for g in simple_graphs], "value")
+            case "Text Centrality":
+                node_style_map = create_node_style_map(simple_graphs, txt_centrality[table_index], "value")
+            case "Image Centrality":
+                node_style_map = create_node_style_map(simple_graphs, img_centrality[table_index], "value")
+            case "Local Clustering":
+                node_style_map = create_node_style_map(simple_graphs, local_clustering_coeffs, "value")
+            case "Centrality Sum":
+                node_style_map = create_node_style_map(simple_graphs, total_centrality[table_index], "value")
+            case "Centrality Intersection":
+                node_style_map = create_node_style_map(simple_graphs, intersection_centrality[table_index], "value")
+            case "Text Centrality Difference":
+                node_style_map = create_node_style_map(simple_graphs, txt_difference[table_index], "value")
+            case "Image Centrality Difference":
+                node_style_map = create_node_style_map(simple_graphs, img_difference[table_index], "value")
+            case "SBM Clustering":
+                clustering = min_block(simple_graphs)
+                node_style_map = create_node_style_map(simple_graphs, clustering, "cluster")
+            case "Nested SBM Clustering":
+                clustering = min_block(simple_graphs, nested=True)
+                i = st.number_input("Nested level", value=0, min_value=0, max_value=3)
+                clustering = [c.project_level(i).get_blocks() for c in clustering]
+                node_style_map = create_node_style_map(simple_graphs, clustering, "cluster")
+            case _:
+                node_style_map = None
 
-    # print(res, len(tokens), num_before_graphs, len(full_graphs))
+        graph_output = contribution_graph(
+            simple_graphs[0].gp.num_layers,
+            tokens,
+            [[] for _ in range(num_before_graphs)] + [get_edge_list(graph) for graph in full_graphs],
+            key=f"graph_{run_dir}_{table_index}",
+            node_style_map=node_style_map
+        )
 
-    if graph_output is not None:
-        st.session_state.current_token = graph_output
+        # print(res, len(tokens), num_before_graphs, len(full_graphs))
+
+        if graph_output is not None:
+            st.session_state.current_token = graph_output
 
     # heatmap = np.zeros((24, 24))
     # graph_idx = st.session_state.current_token - num_before_graphs

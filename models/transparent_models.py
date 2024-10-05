@@ -109,11 +109,10 @@ class TransparentLlava(TransparentLlm):
     @staticmethod
     def tokens_to_strings(tokens: Int[torch.Tensor, "pos"], tokenizer) -> List[str]:
         res = []
-        img_count = 0
         for tok in tokens:
             if tok == TransparentLlava.image_token_id:
-                res.append(f"I_{img_count}")
-                img_count += 1
+                for i in range(576):
+                    res.append(f"I_{i}")  
             else:
                 res.append(tokenizer.decode(tok))
         return res

@@ -11,7 +11,7 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 import pandas as pd
 from tqdm.auto import tqdm
-from transformers import AutoProcessor
+import wandb
 
 from flow.graphs import build_graph_from_contributions
 from utils.misc import set_random_seed
@@ -31,11 +31,20 @@ def run(cfg: DictConfig):
     results_table = pd.read_parquet(base_dir / "results_table.parquet") 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+    simple_graph_dir = base_dir / "simple_graphs"
+    simple_graph_dir.mkdir(parents=True, exist_ok=True)
+    full_graph_dir = base_dir / "full_graphs"
+    full_graph_dir.mkdir(parents=True, exist_ok=True)
+
+    wandb.init(project=cfg.wandb_project, entity=cfg.wandb_entity, name=cfg.run_dir, group="misc",
+               config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True))
+
     vertex_metrics, graph_metrics = create_metrics(cfg)
 
-    full_graph_dict, simple_graph_dict, node_layers_dict, node_pos_dict = {}, {}, {}, {}
+    simple_graph_dict, node_layers_dict, node_pos_dict = {}, {}, {}
     with concurrent.futures.ProcessPoolExecutor(max_workers=cfg.max_workers) as executor:
         if cfg.construct_graphs:
+            graph_metrics_results: dict[str, dict[int, list]] = {}
             for idx, row in tqdm(results_table.iterrows(), total=len(results_table), disable=cfg.disable_tqdm,
                                  desc="Building graphs"):
 
@@ -55,30 +64,28 @@ def run(cfg: DictConfig):
                     )
                 )
 
-                full_graphs, simple_graphs, node_layers, node_pos = [], [], [], []
+                simple_graphs, node_layers, node_pos = [], [], []
 
-                for full_graph, simple_graph, node_layer in results:
-                    full_graphs.append(full_graph)
+                for i, (full_graph, simple_graph, node_layer) in enumerate(results):
+                    full_graph.save(str((full_graph_dir / f"{idx}_{i}.gt").resolve()))
                     simple_graphs.append(simple_graph)
                     node_layers.append(node_layer)
                     node_pos.append((simple_graph.vp.layer_num.a, simple_graph.vp.token_num.a))
 
-                full_graph_dict[idx] = full_graphs
                 simple_graph_dict[idx] = simple_graphs
                 node_layers_dict[idx] = node_layers
                 node_pos_dict[idx] = node_pos
         else:
+            graph_metrics_results = pickle.load(open(base_dir / "graph_metrics_results.pkl", "rb"))
             node_layers_dict = pickle.load(open(base_dir / "node_layers_dict.pkl", "rb"))
             node_pos_dict = pickle.load(open(base_dir / "node_pos_dict.pkl", "rb"))
             for idx in tqdm(results_table.idx, desc="Loading graphs"):
-                full_graphs, simple_graphs, node_layers = [], [], []
+                simple_graphs, node_layers = [], []
                 for i in range(len(node_layers_dict[idx])):
-                    full_graphs.append(load_graph(str(base_dir / "full_graphs" / f"{idx}_{i}.gt")))
                     simple_graphs.append(load_graph(str(base_dir / "simple_graphs" / f"{idx}_{i}.gt"),
                                                     ignore_vp=["txt_contrib", "img_contrib", "txt_centrality",
                                                                "img_centrality", "local_clustering"]))
 
-                full_graph_dict[idx] = full_graphs
                 simple_graph_dict[idx] = simple_graphs
 
         for metric in vertex_metrics:
@@ -106,7 +113,6 @@ def run(cfg: DictConfig):
 
             pickle.dump(vertex_metric_results, open(base_dir / f"{metric.name}_results.pkl", "wb"))
 
-        graph_metrics_results: dict[str, dict[int, list]] = {}
         for metric in graph_metrics:
             for lab in metric.labels:
                 graph_metrics_results[lab] = {}
@@ -130,17 +136,14 @@ def run(cfg: DictConfig):
         pickle.dump(graph_metrics_results, open(base_dir / "graph_metrics_results.pkl", "wb"))
 
     # Save full graphs and simple graphs using the gt format
-    simple_graph_dir = base_dir / "simple_graphs"
-    simple_graph_dir.mkdir(parents=True, exist_ok=True)
-    full_graph_dir = base_dir / "full_graphs"
-    full_graph_dir.mkdir(parents=True, exist_ok=True)
+
     for idx, simple_graphs in tqdm(simple_graph_dict.items(), desc="Saving simple graphs"):
         for i, graph in enumerate(simple_graphs):
             graph.save(str((simple_graph_dir / f"{idx}_{i}.gt").resolve()))
 
-    for idx, full_graphs in tqdm(full_graph_dict.items(), desc="Saving full graphs"):
-        for i, graph in enumerate(full_graphs):
-            graph.save(str((full_graph_dir / f"{idx}_{i}.gt").resolve()))
+    # for idx, full_graphs in tqdm(full_graph_dict.items(), desc="Saving full graphs"):
+    #     for i, graph in enumerate(full_graphs):
+    #         graph.save(str((full_graph_dir / f"{idx}_{i}.gt").resolve()))
 
     # pickle.dump(full_graph_dict, open(base_dir / "full_graph_dict.pkl", "wb"))
     # pickle.dump(simple_graph_dict, open(base_dir / "simple_graph_dict.pkl", "wb"))

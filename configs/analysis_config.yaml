@@ -1,6 +1,5 @@
 defaults:
     - _self_
-    - model: molmo
 
 wandb_project: vlmflow
 wandb_entity: avagr
@@ -12,20 +11,21 @@ resume_wandb_id: null
 max_workers: 16
 
 results_dir: /home/projects/shimon/agroskin/projects/vlmflow/results
-run_dir: Unlabeled_COCO/molmo_72b_merged_600
+run_dir: Unlabeled_COCO/llava_3000_2024_09_26-02_13_31
 #run_dir: Unlabeled_COCO/llava_test_2024_09_16-00_10_20
 
-construct_graphs: true
-graph_threshold: 0.01
+construct_graphs: false
+graph_threshold: 0.02
 
 # Vertex metrics
-modality_contribution: true
-modality_centrality: true
-local_clustering_coefficient: true
+modality_contribution: false
+modality_centrality: false
+local_clustering_coefficient: false
 
 # Graph metrics
-graph_density: true
+graph_density: false
+node_edge_densities: true
 cross_modal_edges: ${modality_contribution}
-global_clustering_coefficient: true
-residual_stream_heights: true
+global_clustering_coefficient: false
+residual_stream_heights: false
 centrality_overlap: ${modality_centrality}

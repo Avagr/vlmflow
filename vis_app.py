@@ -39,28 +39,32 @@ if __name__ == "__main__":
         jaccard_index = {run_dir: [] for run_dir in run_dirs}
         txt_difference = {run_dir: [] for run_dir in run_dirs}
         img_difference = {run_dir: [] for run_dir in run_dirs}
-        densities = {run_dir: [] for run_dir in run_dirs}
+        node_densities = {run_dir: [] for run_dir in run_dirs}
+        edge_densities = {run_dir: [] for run_dir in run_dirs}
         num_cross_modal_edges = {run_dir: [] for run_dir in run_dirs}
         # num_cross_modal_edges_centrality = {run_dir: [] for run_dir in run_dirs}
         global_clustering_coefficient = {run_dir: [] for run_dir in run_dirs}
         metrics = {run_dir: [] for run_dir in run_dirs}
 
-        if "llava" in run_dirs:
-            num_layers = 41
-        elif "molmo_72b" in run_dirs:
-            num_layers = 81
-        elif "molmo" in run_dirs:
-            num_layers = 29
-        else:
-            raise ValueError("Unknown model")
         reduction = partial(np.mean, axis=0)
 
         for run_dir, (table, node_pos, contrib, centrality, clustering, graph_metrics) in dataset_metrics.items():
+
+            if "llava" in run_dir:
+                num_layers = 41
+            elif "molmo_72b" in run_dir:
+                num_layers = 81
+            elif "molmo" in run_dir:
+                num_layers = 29
+            else:
+                raise ValueError("Unknown model")
+
             for idx in tqdm(range(len(table)), disable=False):
                 jaccard_index[run_dir].extend(graph_metrics["jaccard_index"][idx])
                 txt_difference[run_dir].extend(graph_metrics["txt_difference"][idx])
                 img_difference[run_dir].extend(graph_metrics["img_difference"][idx])
-                densities[run_dir].extend(graph_metrics["density"][idx])
+                node_densities[run_dir].extend(graph_metrics["node_density"][idx])
+                edge_densities[run_dir].extend(graph_metrics["edge_density"][idx])
                 num_cross_modal_edges[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
                 # num_cross_modal_edges_centrality[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
                 global_clustering_coefficient[run_dir].extend(graph_metrics["global_clustering_coefficient"][idx])
@@ -92,7 +96,7 @@ if __name__ == "__main__":
         txt_centralities = {run_dir: np.array(m[:, :, 2]) for run_dir, m in metrics.items()}
         local_clustering_coefficients = {run_dir: np.array(m[:, :, 3]) for run_dir, m in metrics.items()}
 
-        return (jaccard_index, txt_difference, img_difference, densities, num_cross_modal_edges,
+        return (jaccard_index, txt_difference, img_difference, node_densities, edge_densities, num_cross_modal_edges,
                  global_clustering_coefficient, img_contribs, img_centralities,
                 txt_centralities, local_clustering_coefficients)
 
@@ -102,6 +106,7 @@ if __name__ == "__main__":
     run_dirs = {
         "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "COCO Molmo 7B Captions",
         "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "COCO LLaVA 13B Captions",
+        "Unlabeled_COCO/llava_3000_copy": "COCO LLaVA 13B Low Threshold",
         "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
         # "WhatsUp_A/llava_base_2024_09_14-22_49_27": "WhatsUp A",
         # "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
@@ -165,7 +170,7 @@ if __name__ == "__main__":
                 pickle.dump(processed_metrics, open("processed_metrics.pkl", "wb"))
 
 
-    (jaccard_index, txt_difference, img_difference, densities, num_cross_modal_edges,
+    (jaccard_index, txt_difference, img_difference, node_densities, edge_densities, num_cross_modal_edges,
      global_clustering_coefficient, img_contribs, img_centralities, txt_centralities,
      local_clustering_coefficients) = processed_metrics
 
@@ -187,15 +192,16 @@ if __name__ == "__main__":
 
     # Plot histograms for each run_dir for densities, cross_modal_edges, num_cross_modal_edges_centrality, global_clustering_coefficient
     fig = make_subplots(rows=2, cols=2,
-                        subplot_titles=["Density", "Num Cross Modal Edges", "Num Cross Modal Edges Centrality",
+                        subplot_titles=["Node Density", 'Edge Density', "Num Cross Modal Edges",
                                         "Global Clustering Coefficient"])
     for run_dir, color in zip(list(run_dirs.keys()), colors):
         hist_args = {"histnorm": "probability density", "legendgroup": run_dirs[run_dir], "name": run_dirs[run_dir],
                      "hovertemplate": "%{x}", "marker": {"color": color}}
-        fig.add_trace(go.Histogram(x=densities[run_dir], **hist_args), row=1, col=1)
+        fig.add_trace(go.Histogram(x=node_densities[run_dir], **hist_args), row=1, col=1)
         hist_args["showlegend"] = False
-        fig.add_trace(go.Histogram(x=num_cross_modal_edges[run_dir], **hist_args), row=1, col=2)
-        # fig.add_trace(go.Histogram(x=num_cross_modal_edges_centrality[run_dir], **hist_args), row=2, col=1)
+        fig.add_trace(go.Histogram(x=edge_densities[run_dir], **hist_args), row=1, col=2)
+
+        fig.add_trace(go.Histogram(x=num_cross_modal_edges[run_dir], **hist_args), row=2, col=1)
         fig.add_trace(go.Histogram(x=global_clustering_coefficient[run_dir], **hist_args), row=2, col=2)
 
     fig.update_xaxes(range=[0, 0.4], row=1, col=1)

@@ -112,7 +112,7 @@ class BaseGraphMetric(ABC):
 
 class GraphDensity(BaseGraphMetric):
     name = "graph_density"
-    labels = ["density"]
+    labels = ["graph_density"]
 
     @staticmethod
     def __call__(graph: Graph) -> list[Number]:
@@ -121,6 +121,18 @@ class GraphDensity(BaseGraphMetric):
         token_nums = nodes[:, 2]
         mask = (layer_nums[:, None] == (layer_nums - 1)) & (token_nums[:, None] <= token_nums)
         return [(graph.num_edges() / mask.sum()).item()]
+
+
+class NodeEdgeDensities(BaseGraphMetric):
+    name = "node_edge_densities"
+    labels = ["node_density", "edge_density"]
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[Number]:
+        num_layers = graph.gp.num_layers + 1
+        num_tokens = graph.vp.token_num.a.max() + 1
+        return [graph.num_vertices() / (num_layers * num_tokens),
+                graph.num_edges() / (num_layers * (num_tokens * (num_tokens + 1) / 2))]
 
 
 class GlobalClusteringCoefficient(BaseGraphMetric):
