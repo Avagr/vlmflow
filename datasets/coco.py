@@ -13,7 +13,7 @@ from utils.eval import EvaluationResult
 class UnlabeledCoco(BaseDataset):
     table_columns = ['idx', 'image', 'generated_caption']
 
-    def __init__(self, img_dir: Path, img_descriptions_file: Path, dataset_from: int = None, dataset_to: int = None):
+    def __init__(self, img_dir: Path, img_descriptions_file: Path, dataset_from: int = 0, dataset_to: int = None):
         super().__init__()
         self.img_dir = img_dir
         self.dataset_from = dataset_from

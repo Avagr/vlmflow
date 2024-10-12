@@ -1,6 +1,7 @@
 from typing import List, Any
 
 from fancy_einsum import einsum
+from opt_einsum import contract
 from jaxtyping import Float, Int
 import torch
 from torch import nn
@@ -10,17 +11,21 @@ from models.molmo.preprocessing_molmo import MolmoProcessor
 from models.transparent_llm import TransparentLlm, ModelInfo
 from utils.hooks import InputsHook, OutputsHook
 
+@torch.compile()
+def get_decomposed_attention(v, pattern, o_weight):
+    return torch.einsum("khd,hqk,hdm->qkhm", v, pattern, o_weight.to(dtype=v.dtype, device=v.device))
 
 class TransparentLlava(TransparentLlm):
     image_token_id = 32000
 
-    def __init__(self, name, llava, processor, device, dtype=torch.bfloat16):
+    def __init__(self, name, llava, processor, device, dtype=torch.bfloat16, store_on_cpu=False):
         super().__init__()
         self.name = name
         self.wrapped_model = llava
         self.processor = processor
         self.device = device
         self.dtype = dtype
+        self.store_on_cpu = store_on_cpu
         self.n_layers = self.wrapped_model.language_model.config.num_hidden_layers
         self.n_heads = self.wrapped_model.language_model.config.num_attention_heads
         self.d_model = self.wrapped_model.language_model.config.hidden_size
@@ -49,7 +54,7 @@ class TransparentLlava(TransparentLlm):
                                      enumerate(self.value_out_hooks)]
 
         self.last_run_inputs = None
-        self.last_run_logits = None
+        self.last_run_logits_shape = None
         self.last_run_attentions = None
 
     def underlying_model(self) -> nn.Module:
@@ -58,8 +63,8 @@ class TransparentLlava(TransparentLlm):
     def clear_state(self):
         del self.last_run_inputs
         self.last_run_inputs = None
-        del self.last_run_logits
-        self.last_run_logits = None
+        del self.last_run_logits_shape
+        self.last_run_logits_shape = None
         del self.last_run_attentions
         self.last_run_attentions = None
 
@@ -82,19 +87,19 @@ class TransparentLlava(TransparentLlm):
         results = self.wrapped_model(**inputs)
 
         self.last_run_inputs = inputs
-        self.last_run_logits = results.logits
-        self.last_run_attentions = results.attentions
+        self.last_run_logits_shape = results.logits.shape
+        self.last_run_attentions = [att.cpu() for att in results.attentions] if self.store_on_cpu else results.attentions
         return results
 
     def generate(self, **inputs):
         return self.wrapped_model.generate(**inputs)
 
     def batch_size(self) -> int:
-        return self.last_run_logits.shape[0]
+        return self.last_run_logits_shape[0]
 
     def tokens(self) -> Int[torch.Tensor, "batch pos"]:
         input_ids = self.last_run_inputs['input_ids']
-        res = torch.zeros(self.last_run_logits.shape[:2], dtype=torch.int64, device=self.device)
+        res = torch.zeros(self.last_run_logits_shape[:2], dtype=torch.int64, device=self.device)
         res.fill_(TransparentLlava.image_token_id)
         img_begin = (input_ids == TransparentLlava.image_token_id).nonzero()
         for i, begin in img_begin:
@@ -163,7 +168,7 @@ class TransparentLlava(TransparentLlm):
     def decomposed_attn_head(
             self, head_i: int, batch_i: int, layer: int
     ) -> Float[torch.Tensor, "source target d_model"]:
-        batch_size, num_tokens = self.last_run_logits.shape[:2]
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
         v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.n_heads, self.d_model // self.n_heads)[
             batch_i, :, head_i]
 
@@ -193,7 +198,7 @@ class TransparentLlava(TransparentLlm):
     def decomposed_attn_head_slice(
             self, head_start: int, head_end: int, batch_i: int, layer: int
     ) -> Float[torch.Tensor, "source target slice d_model"]:
-        batch_size, num_tokens = self.last_run_logits.shape[:2]
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
         v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.n_heads, self.d_model // self.n_heads)[
             batch_i, :, head_start:head_end]
 
@@ -222,7 +227,7 @@ class TransparentLlava(TransparentLlm):
 
     @torch.no_grad()
     def decomposed_attn(self, batch_i: int, layer: int) -> Float[torch.Tensor, "source target head d_model"]:
-        batch_size, num_tokens = self.last_run_logits.shape[:2]
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
         v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.n_heads, self.d_model // self.n_heads)[
             batch_i]
         # # support for gqa
@@ -290,38 +295,38 @@ class TransparentPixtral(TransparentLlava):
                     res.append(tokenizer.decode(tok))
         return res
 
+
     @torch.no_grad()
     def decomposed_attn_head_slice(
             self, head_start: int, head_end: int, batch_i: int, layer: int
     ) -> Float[torch.Tensor, "source target slice d_model"]:
-        batch_size, num_tokens = self.last_run_logits.shape[:2]
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
         v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.config.num_key_value_heads,
                                                    self.config.head_dim)
 
         v = v.repeat_interleave(self.n_heads // self.config.num_key_value_heads, dim=2, output_size=self.n_heads)
         v = v[batch_i, :, head_start:head_end]
 
-        pattern = self.last_run_attentions[layer]
+        pattern = self.last_run_attentions[layer].to(dtype=v.dtype, device=v.device)
         pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
-        pattern = pattern[batch_i, head_start:head_end].to(dtype=v.dtype, device=v.device)
-        z = einsum(
-            "key_pos head d_head, "
-            "head query_pos key_pos -> "
-            "query_pos key_pos head d_head",
-            v,
-            pattern,
-        )
-
+        pattern = pattern[batch_i, head_start:head_end]
         o_weight = self.layers[layer].self_attn.o_proj.weight.T.view(self.n_heads, self.config.head_dim, self.d_model)[
                    head_start:head_end]
-        decomposed_attn = einsum(
-            "pos key_pos head d_head, "
-            "head d_head d_model -> "
-            "pos key_pos head d_model",
-            z.to(dtype=o_weight.dtype, device=o_weight.device),
-            o_weight
-        )
-        return decomposed_attn
+        # z = einsum(
+        #     "key_pos head d_head, "
+        #     "head query_pos key_pos -> "
+        #     "query_pos key_pos head d_head",
+        #     v,
+        #     pattern,
+        # )
+        # decomposed_attn = einsum(
+        #     "pos key_pos head d_head, "
+        #     "head d_head d_model -> "
+        #     "pos key_pos head d_model",
+        #     z.to(dtype=o_weight.dtype, device=o_weight.device),
+        #     o_weight
+        # )
+        return get_decomposed_attention(v, pattern, o_weight)
 
 
 class TransparentMolmo(TransparentLlm):
@@ -366,14 +371,14 @@ class TransparentMolmo(TransparentLlm):
                                    enumerate(self.qkv_out_hooks)]
 
         self.last_run_inputs = None
-        self.last_run_logits = None
+        self.last_run_logits_shape = None
         self.last_run_attentions = None
 
     def clear_state(self):
         del self.last_run_inputs
         self.last_run_inputs = None
-        del self.last_run_logits
-        self.last_run_logits = None
+        del self.last_run_logits_shape
+        self.last_run_logits_shape = None
         del self.last_run_attentions
         self.last_run_attentions = None
 
@@ -396,7 +401,7 @@ class TransparentMolmo(TransparentLlm):
         results = self.molmo(**inputs)
 
         self.last_run_inputs = inputs
-        self.last_run_logits = results.logits
+        self.last_run_logits_shape = results.logits.shape
         self.last_run_attentions = results.attentions
         return results
 
@@ -409,7 +414,7 @@ class TransparentMolmo(TransparentLlm):
         )
 
     def batch_size(self) -> int:
-        return self.last_run_logits.shape[0]
+        return self.last_run_logits_shape[0]
 
     def tokens(self) -> Int[torch.Tensor, "batch pos"]:
         return self.last_run_inputs['input_ids']
@@ -495,7 +500,7 @@ class TransparentMolmo(TransparentLlm):
 
     def decomposed_attn_head_slice(self, head_start: int, head_end: int, batch_i: int, layer: int) -> Float[
         torch.Tensor, "source target slice d_model"]:
-        batch_size, num_tokens = self.last_run_logits.shape[:2]
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
         qkv = self.qkv_out_hooks[layer].value
 
         _, _, v = qkv.split(self.molmo.model.transformer.blocks[layer].fused_dims, dim=-1)
@@ -509,7 +514,7 @@ class TransparentMolmo(TransparentLlm):
         pattern = pattern[batch_i, head_start:head_end].to(dtype=v.dtype, device=v.device)
         z = einsum(
             "key_pos head d_head, "
-            "head query_pos key_pos -> "
+            "head query_pos key_pos -> "  
             "query_pos key_pos head d_head",
             v,
             pattern,

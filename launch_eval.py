@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from utils.eval import eval_model, merge_results
 from utils.misc import set_random_seed, count_parameters, timestamp
 from utils.setup import create_model, create_eval_task, create_callbacks
+from torch.backends import opt_einsum
 
 
 @hydra.main(config_path="configs", config_name="eval_config", version_base=None)
@@ -25,6 +26,7 @@ def run(cfg: DictConfig):
     set_random_seed(cfg.seed)
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
     print(OmegaConf.to_yaml(cfg))
     if cfg.disable_wandb:
@@ -62,6 +64,8 @@ def run(cfg: DictConfig):
                         pin_memory=cfg.pin_memory, collate_fn=collate_fn)
 
     callbacks = create_callbacks(cfg, wrapper, run_folder, model)
+
+
 
     with torch.inference_mode(mode=not cfg.need_grad):
         accuracy, results = eval_model(model, wrapper, loader, cfg.show_tqdm)

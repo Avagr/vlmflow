@@ -62,7 +62,7 @@ def create_model(cfg):
                                                                     attn_implementation=cfg.model.attn_impl)
             processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
             pixtral.generation_config.pad_token_id = processor.tokenizer.eos_token_id
-            model = TransparentPixtral(cfg.model.name, pixtral, processor, pixtral.device, dtype)
+            model = TransparentPixtral(cfg.model.name, pixtral, processor, pixtral.device, dtype, store_on_cpu=True)
             model = GenerativeWrapper(processor, model, pixtral.device, dtype, list(cfg.model.vqa_tokens),
                                       output_attentions=True)
 
