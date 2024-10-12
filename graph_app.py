@@ -1,5 +1,6 @@
 import json
 
+from PIL import Image
 from graph_tool import Graph, PropertyMap  # noqa
 import graph_tool.all as gt
 import plotly.graph_objects as go
@@ -23,34 +24,53 @@ if __name__ == "__main__":
         st.session_state.clear()
 
 
-    run_dirs = [
-        "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54",
-        "Unlabeled_COCO/molmo_72b_merged_600",
-        "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31",
-        "Unlabeled_COCO/llava_3000_copy",
-        "WhatsUp_A/llava_base_2024_09_14-22_49_27",
-        "WhatsUp_A/llava_gen_2024_09_22-23_12_59",
-        "WhatsUp_B/llava_base_2024_09_14-22_49_28",
-        "WhatsUp_B/llava_gen_2024_09_22-23_12_59",
-        "SEED-Bench-2_Part_8/llava_base_2024_09_14-22_52_15",
-        "SEED-Bench-2_Part_16/llava_base_2024_09_14-22_52_21",
-        "SEED-Bench-2_Part_4/llava_base_2024_09_14-22_52_18",
-        "SEED-Bench-2_Part_15/llava_base_2024_09_14-22_52_15",
-        "SEED-Bench-2_Part_2/llava_base_2024_09_14-22_52_11",
-        "SEED-Bench-2_Part_14/llava_base_2024_09_14-22_52_14",
-        "SEED-Bench-2_Part_13/llava_base_2024_09_14-22_52_14",
-        "SEED-Bench-2_Part_10/llava_base_2024_09_14-22_52_17",
-        "SEED-Bench-2_Part_5/llava_base_2024_09_14-22_52_17",
-        "SEED-Bench-2_Part_11/llava_base_2024_09_14-22_52_14",
-        "SEED-Bench-2_Part_6/llava_base_2024_09_14-22_52_14",
-        "SEED-Bench-2_Part_12/llava_base_2024_09_14-22_52_14",
-        "SEED-Bench-2_Part_7/llava_base_2024_09_14-22_52_15",
-        "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17",
-        "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11",
-        "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12",  
-        "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57",
-
-    ]
+    dirs_to_name = {
+        # "Unlabeled_COCO/llava_3000_copy": "COCO LLaVA 13B Low Threshold",
+        # "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
+        # "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "LLaVA 13B COCO Captions",
+        # "WhatsUp_A/llava_base_2024_09_14-22_49_27": "LLaVA 13B WhatsUp A",
+        # "WhatsUp_B/llava_base_2024_09_14-22_49_28": "LLaVA 13B WhatsUp B",
+        # "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11": "LLaVA 13B SEED Scene Understanding",
+        # "SEED-Bench-2_Part_2/llava_base_2024_09_14-22_52_11": "LLaVA 13B SEED Instance Identity",
+        # "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12": "LLaVA 13B SEED Instance Attributes",
+        # "SEED-Bench-2_Part_4/llava_base_2024_09_14-22_52_18": "LLaVA 13B SEED Instance Location",
+        # "SEED-Bench-2_Part_5/llava_base_2024_09_14-22_52_17": "LLaVA 13B SEED Instance Count",
+        # "SEED-Bench-2_Part_6/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Spatial Relation",
+        # "SEED-Bench-2_Part_7/llava_base_2024_09_14-22_52_15": "LLaVA 13B SEED Instance Interaction",
+        # "SEED-Bench-2_Part_8/llava_base_2024_09_14-22_52_15": "LLaVA 13B SEED Visual Reasoning",
+        # "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17": "LLaVA 13B SEED Text Understanding",
+        # "SEED-Bench-2_Part_10/llava_base_2024_09_14-22_52_17": "LLaVA 13B SEED Celebrity Recognition",
+        # "SEED-Bench-2_Part_11/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Landmark Recognition",
+        # "SEED-Bench-2_Part_12/llava_base_2024_09_14-22_52_14": "LLaVA 13B EED Chart Understanding",
+        # "SEED-Bench-2_Part_13/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Visual Referring Expression",
+        # "SEED-Bench-2_Part_14/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Science Knowledge",
+        # "SEED-Bench-2_Part_15/llava_base_2024_09_14-22_52_15": "LLaVA 13B SEED Emotion Recognition",
+        # "SEED-Bench-2_Part_16/llava_base_2024_09_14-22_52_21": "LLaVA 13B SEED Visual Mathematics",
+        # "Unlabeled_COCO/llava_2000_2024_09_15-01_57_15": "COCO Captions",
+        # "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
+        # "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57": "COCO Captions Reverse",
+        # "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
+        # "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "Molmo 7B COCO Captions",
+        # "WhatsUp_A/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp A",
+        # "WhatsUp_B/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp B",
+        # "SEED-Bench-2_Part_1/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Scene Understanding",
+        # "SEED-Bench-2_Part_2/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Instance Identity",
+        # "SEED-Bench-2_Part_3/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Instance Attributes",
+        # "SEED-Bench-2_Part_4/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Instance Location",
+        # "SEED-Bench-2_Part_5/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Instance Count",
+        # "SEED-Bench-2_Part_6/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Spatial Relation",
+        # "SEED-Bench-2_Part_7/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Instance Interaction",
+        # "SEED-Bench-2_Part_8/molmo_fixed_abcd_2024_10_10-17_46_01": "Molmo 7B SEED Visual Reasoning",
+        # "SEED-Bench-2_Part_9/molmo_fixed_abcd_2024_10_10-17_46_02": "Molmo 7B SEED Text Understanding",
+        # "SEED-Bench-2_Part_10/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Celebrity Recognition",
+        # "SEED-Bench-2_Part_11/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Landmark Recognition",
+        # "SEED-Bench-2_Part_12/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Chart Understanding",
+        # "SEED-Bench-2_Part_13/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Visual Referring Expression",
+        # "SEED-Bench-2_Part_14/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Science Knowledge",
+        # "SEED-Bench-2_Part_15/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Emotion Recognition",
+        # "SEED-Bench-2_Part_16/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Visual Mathematics",
+        "WhatsUp_B/molmo_72b_abcd_2024_10_12-02_38_50": "Molmo 72B WhatsUp B"
+    }
 
     margins_css = """
         <style>
@@ -69,7 +89,8 @@ if __name__ == "__main__":
     st.markdown(margins_css, unsafe_allow_html=True)
 
     base_dir = "/home/projects/shimon/agroskin/projects/vlmflow/results"
-    run_dir = st.selectbox("Run Directory", run_dirs, index=0, on_change=st.session_state.clear)
+    run_dir = st.selectbox("Run Directory", list(dirs_to_name.keys()), index=0, on_change=st.session_state.clear,
+                           format_func=lambda x: dirs_to_name[x])
 
     if 'llava' in run_dir:
         model_name = 'llava'
@@ -93,6 +114,11 @@ if __name__ == "__main__":
         table_index = st.number_input("Table index", value=0, min_value=0, max_value=len(table) - 1)
         table_row = table.iloc[table_index]
         st.write(processor.tokenizer.decode(table_row.generated_ids, skip_special_tokens=True))
+        st.write("\nCorrect Answer:", table_row.answer)
+        # Show the image
+        img_path = f"{image_dir}/{table_row.image}"
+        st.image(Image.open(img_path), caption=table_row.image, use_column_width=True)
+
 
     simple_graphs, full_graphs = read_graphs(f"{base_dir}/{run_dir}", table_index, len(node_layers[table_index]))
 
@@ -107,7 +133,7 @@ if __name__ == "__main__":
 
     num_before_graphs = len(tokens) - 1 - len(full_graphs)
 
-    local_clustering_coeffs = [np.nan_to_num(g.vp.local_clustering.a) for g in simple_graphs]
+    # local_clustering_coeffs = [np.nan_to_num(g.vp.local_clustering.a) for g in simple_graphs]
     # print(local_clustering_coeffs)
 
     if st.checkbox("Show Overgraph", value=False):
@@ -140,8 +166,8 @@ if __name__ == "__main__":
                 node_style_map = create_node_style_map(simple_graphs, txt_centrality[table_index], "value")
             case "Image Centrality":
                 node_style_map = create_node_style_map(simple_graphs, img_centrality[table_index], "value")
-            case "Local Clustering":
-                node_style_map = create_node_style_map(simple_graphs, local_clustering_coeffs, "value")
+            # case "Local Clustering":
+            #     node_style_map = create_node_style_map(simple_graphs, local_clustering_coeffs, "value")
             case "Centrality Sum":
                 node_style_map = create_node_style_map(simple_graphs, total_centrality[table_index], "value")
             case "Centrality Intersection":
@@ -161,13 +187,14 @@ if __name__ == "__main__":
             case _:
                 node_style_map = None
 
-        graph_output = contribution_graph(
-            simple_graphs[0].gp.num_layers,
-            tokens,
-            [[] for _ in range(num_before_graphs)] + [get_edge_list(graph) for graph in full_graphs],
-            key=f"graph_{run_dir}_{table_index}",
-            node_style_map=node_style_map
-        )
+        with st.container():
+            graph_output = contribution_graph(
+                simple_graphs[0].gp.num_layers,
+                tokens,
+                [[] for _ in range(num_before_graphs)] + [get_edge_list(graph) for graph in full_graphs],
+                key=f"graph_{run_dir}_{table_index}",
+                node_style_map=node_style_map
+            )
 
         # print(res, len(tokens), num_before_graphs, len(full_graphs))
 
@@ -201,7 +228,7 @@ if __name__ == "__main__":
     contrib_mean, contrib_len = plot_for_item([g.vp.img_contrib.a for g in simple_graphs], node_layers[table_index])
     txt_centrality_mean, _ = plot_for_item(txt_centrality[table_index], node_layers[table_index])
     img_centrality_mean, _ = plot_for_item(img_centrality[table_index], node_layers[table_index])
-    clustering_coeffs_mean, _ = plot_for_item(local_clustering_coeffs, node_layers[table_index])
+    # clustering_coeffs_mean, _ = plot_for_item(local_clustering_coeffs, node_layers[table_index])
 
     if len(simple_graphs) > 1:
         fig = make_subplots(
@@ -218,8 +245,8 @@ if __name__ == "__main__":
                       col=1)
         fig.add_trace(go.Surface(z=img_centrality_mean, surfacecolor=img_centrality_mean, showscale=False), row=2,
                       col=2)
-        fig.add_trace(go.Surface(z=clustering_coeffs_mean, surfacecolor=clustering_coeffs_mean, showscale=False), row=3,
-                      col=1)
+        # fig.add_trace(go.Surface(z=clustering_coeffs_mean, surfacecolor=clustering_coeffs_mean, showscale=False), row=3,
+        #               col=1)
 
         xaxis_config = {'title': 'Token', 'tickvals': list(range(len(stringified_tokens))),
                         'ticktext': stringified_tokens,
@@ -251,9 +278,9 @@ if __name__ == "__main__":
                       col=1)
         fig.add_trace(go.Scatter(y=img_centrality_mean.squeeze(), mode='lines+markers', name='Image Centrality'), row=2,
                       col=2)
-        fig.add_trace(
-            go.Scatter(y=clustering_coeffs_mean.squeeze(), mode='lines+markers', name='Local Clustering Coefficient'),
-            row=3, col=1)
+        # fig.add_trace(
+        #     go.Scatter(y=clustering_coeffs_mean.squeeze(), mode='lines+markers', name='Local Clustering Coefficient'),
+        #     row=3, col=1)
 
         fig.update_layout(
             width=1800,

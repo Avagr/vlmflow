@@ -10,7 +10,7 @@ class GenerativeWrapper(nn.Module):
     Wrapper for tasks that require generating text
     """
 
-    def __init__(self, processor, model: TransparentLlm, device, dtype, output_attentions=True):
+    def __init__(self, processor, model: TransparentLlm, device, dtype, vqa_candidates, output_attentions=True):
         super().__init__()
         self.processor = processor
         processor.tokenizer.padding_side = 'left'
@@ -23,16 +23,17 @@ class GenerativeWrapper(nn.Module):
         self.image_pad_index = 32001
         self.num_image_patches = 576
         self.output_attentions = output_attentions
+        self.vqa_candidates = vqa_candidates
 
     def generate(self, images: list[torch.Tensor], texts: list[str], config: GenerationConfig) -> (
             list[str], list[list[int]], list[int]):
-        inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,
+        inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=False).to(device=self.device,
                                                                                                  dtype=self.dtype)
         generated_ids = self.model.generate(**inputs, generation_config=config)
         num_generated_tokens = [len(generated_ids[i]) - len(inputs.input_ids[i]) for i in range(len(texts))]
         # One more forward to save the activations in the transparent model
         match self.model.name:
-            case "llava":  # A dirty hack to work around many api differences in the transformers library
+            case "llava" | "pixtral":   # A dirty hack to work around many api differences in the transformers library
                 padded_mask = torch.ones_like(generated_ids[:, :-1])
                 padded_mask[:, :inputs.attention_mask.shape[1]] = inputs.attention_mask
                 self.model(input_ids=generated_ids[:, :-1], pixel_values=inputs.pixel_values,
@@ -50,18 +51,17 @@ class GenerativeWrapper(nn.Module):
 
     def forward(self, images: list[torch.Tensor], texts: list[str], **kwargs) -> torch.Tensor:
 
-        inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=True).to(device=self.device,
+        inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=False).to(device=self.device,
                                                                                                  dtype=self.dtype)
         return self.model(**inputs, output_attentions=self.output_attentions, **kwargs, use_cache=False)
 
     def score_single_tokens(self, images: list[torch.Tensor], texts: list[str],
                             candidates: list[str]) -> (torch.Tensor, list[list[int]], list[int]):
-
         labels = self.processor.tokenizer(candidates, add_special_tokens=False, return_tensors='pt',
                                           padding=False).input_ids.view(-1).to(device=self.device)
         if labels.shape[0] != len(candidates):
             raise ValueError(f"Each candidate should be a single token, {candidates} do not fit this criteria")
-        inputs = self.processor(text=texts, images=images, return_tensors='pt', truncation=False, padding=True).to(
+        inputs = self.processor(text=texts, images=images, return_tensors='pt', truncation=False, padding=False).to(
             device=self.device,
             dtype=self.dtype)
         logits = torch.softmax(self.model(**inputs, output_attentions=self.output_attentions, use_cache=False).logits,
@@ -74,7 +74,7 @@ class GenerativeWrapper(nn.Module):
         return logits[:, -1, labels], generated_ids, num_generated_tokens
 
     def score_text(self, images: list[torch.Tensor], texts: list[str]) -> (torch.Tensor, dict[str, torch.Tensor]):
-        inputs = self.processor(text=texts, images=images, return_tensors='pt', truncation=False, padding=True).to(
+        inputs = self.processor(text=texts, images=images, return_tensors='pt', truncation=False, padding=False).to(
             device=self.device,
             dtype=self.dtype)
 

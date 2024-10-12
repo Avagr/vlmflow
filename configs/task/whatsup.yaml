@@ -3,6 +3,6 @@ part: A
 json_path_A: /home/projects/shimon/agroskin/datasets/whatsup/controlled_images_dataset.json
 json_path_B: /home/projects/shimon/agroskin/datasets/whatsup/controlled_clevr_dataset.json
 image_root: /home/projects/shimon/agroskin/datasets/whatsup
-eval_method: gen
-permute: truecd
+eval_method: abcd
+permute: true
 display_name: "${task.name}_${task.part}"

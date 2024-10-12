@@ -4,15 +4,15 @@ import torch
 from transformers import LlavaForConditionalGeneration, AutoProcessor, GenerationConfig
 
 from datasets.base import EvalWrapper
-from datasets.gqa import GQA, GQAEval, GQACollate
 from datasets.coco import UnlabeledCoco, UnlabeledCocoCollate, UnlabeledCocoEval
+from datasets.gqa import GQA, GQAEval, GQACollate
 from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
 from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
 from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate
 from flow.analysis import *
 from models.molmo.modeling_molmo import MolmoForCausalLM
 from models.molmo.preprocessing_molmo import MolmoProcessor
-from models.transparent_models import TransparentLlava, TransparentMolmo
+from models.transparent_models import TransparentLlava, TransparentMolmo, TransparentPixtral
 from models.wrappers import GenerativeWrapper
 from utils.callbacks import GraphTensorCallback, LogitLensCallback, ResidualsByLayerCallback, ImageBoundariesCallback
 
@@ -39,7 +39,8 @@ def create_model(cfg):
 
             processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
             model = TransparentLlava(cfg.model.name, llava, processor, llava.device, dtype)
-            model = GenerativeWrapper(processor, model, llava.device, dtype, output_attentions=True)
+            model = GenerativeWrapper(processor, model, llava.device, dtype, list(cfg.model.vqa_tokens),
+                                      output_attentions=True)
         case "molmo":
             molmo = MolmoForCausalLM.from_pretrained(
                 cfg.model.config_name,
@@ -48,9 +49,22 @@ def create_model(cfg):
                 low_cpu_mem_usage=True,
             )
             molmo.model.vision_backbone = molmo.model.vision_backbone.to(torch.float)
-            processor =  MolmoProcessor.from_pretrained(cfg.model.config_name, trust_remote_code=True)
+            processor = MolmoProcessor.from_pretrained(cfg.model.config_name, trust_remote_code=True)
             model = TransparentMolmo(cfg.model.name, molmo, processor, molmo.device, dtype)
-            model = GenerativeWrapper(processor, model, molmo.device, dtype, output_attentions=True)
+            model = GenerativeWrapper(processor, model, molmo.device, dtype, list(cfg.model.vqa_tokens),
+                                      output_attentions=True)
+
+        case "pixtral":
+            pixtral = LlavaForConditionalGeneration.from_pretrained(cfg.model.config_name,
+                                                                    torch_dtype=dtype,
+                                                                    low_cpu_mem_usage=True,
+                                                                    device_map='auto',
+                                                                    attn_implementation=cfg.model.attn_impl)
+            processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
+            pixtral.generation_config.pad_token_id = processor.tokenizer.eos_token_id
+            model = TransparentPixtral(cfg.model.name, pixtral, processor, pixtral.device, dtype)
+            model = GenerativeWrapper(processor, model, pixtral.device, dtype, list(cfg.model.vqa_tokens),
+                                      output_attentions=True)
 
         case _:
             raise ValueError(f"Unsupported model '{cfg.model.name}'")

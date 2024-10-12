@@ -17,17 +17,18 @@ class TransparentLlava(TransparentLlm):
     def __init__(self, name, llava, processor, device, dtype=torch.bfloat16):
         super().__init__()
         self.name = name
-        self.llava = llava
+        self.wrapped_model = llava
         self.processor = processor
         self.device = device
         self.dtype = dtype
-        self.n_layers = self.llava.language_model.config.num_hidden_layers
-        self.n_heads = self.llava.language_model.config.num_attention_heads
-        self.d_model = self.llava.language_model.config.hidden_size
+        self.n_layers = self.wrapped_model.language_model.config.num_hidden_layers
+        self.n_heads = self.wrapped_model.language_model.config.num_attention_heads
+        self.d_model = self.wrapped_model.language_model.config.hidden_size
         self.processor.tokenizer.padding_side = 'left'
 
-        llm = self.llava.language_model
-        self.layers = self.llava.language_model.model.layers
+        llm = self.wrapped_model.language_model
+        self.layers = self.wrapped_model.language_model.model.layers
+        self.config = llm.config
 
         self.res_in_hooks = [InputsHook(0) for _ in range(self.n_layers)] + [InputsHook(0)]
         self.res_in_hook_objs = [self.layers[i].register_forward_pre_hook(hook, with_kwargs=True) for i, hook in
@@ -52,7 +53,7 @@ class TransparentLlava(TransparentLlm):
         self.last_run_attentions = None
 
     def underlying_model(self) -> nn.Module:
-        return self.llava
+        return self.wrapped_model
 
     def clear_state(self):
         del self.last_run_inputs
@@ -73,12 +74,12 @@ class TransparentLlava(TransparentLlm):
             n_layers=self.n_layers,
             n_heads=self.n_heads,
             d_model=self.d_model,
-            d_vocab=self.llava.language_model.config.vocab_size,
+            d_vocab=self.wrapped_model.language_model.config.vocab_size,
         )
 
     def forward(self, **inputs) -> Any:
         self.clear_state()
-        results = self.llava(**inputs)
+        results = self.wrapped_model(**inputs)
 
         self.last_run_inputs = inputs
         self.last_run_logits = results.logits
@@ -86,7 +87,7 @@ class TransparentLlava(TransparentLlm):
         return results
 
     def generate(self, **inputs):
-        return self.llava.generate(**inputs)
+        return self.wrapped_model.generate(**inputs)
 
     def batch_size(self) -> int:
         return self.last_run_logits.shape[0]
@@ -112,7 +113,7 @@ class TransparentLlava(TransparentLlm):
         for tok in tokens:
             if tok == TransparentLlava.image_token_id:
                 for i in range(576):
-                    res.append(f"I_{i}")  
+                    res.append(f"I_{i}")
             else:
                 res.append(tokenizer.decode(tok))
         return res
@@ -120,9 +121,10 @@ class TransparentLlava(TransparentLlm):
     def logit_lens(self, after_layer: int, token: int, normalize: bool) -> Float[torch.Tensor, "batch vocab"]:
         res_after_layer = self.residual_out(after_layer)
         if normalize:
-            return self.llava.language_model.lm_head(self.llava.language_model.model.norm(res_after_layer)[:, token, :])
+            return self.wrapped_model.language_model.lm_head(
+                self.wrapped_model.language_model.model.norm(res_after_layer)[:, token, :])
         else:
-            return self.llava.language_model.lm_head(res_after_layer[:, token, :])
+            return self.wrapped_model.language_model.lm_head(res_after_layer[:, token, :])
 
     def logits(self) -> Float[torch.Tensor, "batch pos d_vocab"]:
         raise NotImplementedError
@@ -249,6 +251,79 @@ class TransparentLlava(TransparentLlm):
         return decomposed_attn
 
 
+class TransparentPixtral(TransparentLlava):
+    image_token_id = 10
+    image_break_token_id = 12
+    image_end_token_id = 13
+
+    def tokens(self) -> Int[torch.Tensor, "batch pos"]:
+        return self.last_run_inputs['input_ids']
+
+    def image_token_pos(self, batch_i: int) -> (int, int):
+        """
+        WARNING: This (and the whole repository as of now) supports only a setting where
+        all image tokens are at a single point in the input. Interleaved image-text is not currently supported.
+        """
+        input_ids = self.last_run_inputs['input_ids']
+        img_begin = (input_ids[batch_i] == self.image_token_id).nonzero().min()
+        img_end = (input_ids[batch_i] == self.image_end_token_id).nonzero().max()
+        return img_begin.item(), img_end.item()
+
+    @staticmethod
+    def tokens_to_strings(tokens: Int[torch.Tensor, "pos"], tokenizer) -> List[str]:
+        res = []
+        img_count = 0
+        img_break_count = 0
+        img_end_count = 0
+        for tok in tokens:
+            match tok:
+                case TransparentPixtral.image_token_id:
+                    res.append(f"I_{img_count}")
+                    img_count += 1
+                case TransparentPixtral.image_break_token_id:
+                    res.append(f"I_{img_break_count}_BREAK")
+                    img_break_count += 1
+                case TransparentPixtral.image_end_token_id:
+                    res.append(f"I_{img_end_count}_END")
+                    img_end_count += 1
+                case _:
+                    res.append(tokenizer.decode(tok))
+        return res
+
+    @torch.no_grad()
+    def decomposed_attn_head_slice(
+            self, head_start: int, head_end: int, batch_i: int, layer: int
+    ) -> Float[torch.Tensor, "source target slice d_model"]:
+        batch_size, num_tokens = self.last_run_logits.shape[:2]
+        v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.config.num_key_value_heads,
+                                                   self.config.head_dim)
+
+        v = v.repeat_interleave(self.n_heads // self.config.num_key_value_heads, dim=2, output_size=self.n_heads)
+        v = v[batch_i, :, head_start:head_end]
+
+        pattern = self.last_run_attentions[layer]
+        pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
+        pattern = pattern[batch_i, head_start:head_end].to(dtype=v.dtype, device=v.device)
+        z = einsum(
+            "key_pos head d_head, "
+            "head query_pos key_pos -> "
+            "query_pos key_pos head d_head",
+            v,
+            pattern,
+        )
+
+        o_weight = self.layers[layer].self_attn.o_proj.weight.T.view(self.n_heads, self.config.head_dim, self.d_model)[
+                   head_start:head_end]
+        decomposed_attn = einsum(
+            "pos key_pos head d_head, "
+            "head d_head d_model -> "
+            "pos key_pos head d_model",
+            z.to(dtype=o_weight.dtype, device=o_weight.device),
+            o_weight
+        )
+        return decomposed_attn
+
+
 class TransparentMolmo(TransparentLlm):
     image_start_token_id = 152064
     image_end_token_id = 152065
@@ -327,7 +402,8 @@ class TransparentMolmo(TransparentLlm):
 
     def generate(self, **inputs):
         return self.molmo.generate_from_batch(
-            {"input_ids": inputs["input_ids"], "images": inputs["images"], "image_input_idx": inputs["image_input_idx"], "image_masks": inputs["image_masks"]},
+            {"input_ids": inputs["input_ids"], "images": inputs["images"], "image_input_idx": inputs["image_input_idx"],
+             "image_masks": inputs["image_masks"]},
             inputs["generation_config"],
             tokenizer=self.processor.tokenizer
         )

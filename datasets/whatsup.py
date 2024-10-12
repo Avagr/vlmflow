@@ -18,7 +18,7 @@ class WhatsUp(BaseDataset):
         self.root_dir = root_dir
         self.permute_options = permute_options
         with open(json_path, 'r') as f:
-            self.items = json.load(f)
+            self.items = json.load(f) 
         if self.permute_options:
             self.permutations = [torch.randperm(4) for _ in self.items]
 
@@ -102,7 +102,7 @@ class WhatsUpEval:
                           f"A. {opt[0]}\nB. {opt[1]}\nC. {opt[2]}\nD. {opt[3]}\n"
                           f"{self.post_prompt}") for opt in options]
                 scores, generated_ids, num_generated_tokens = model.score_single_tokens(images, texts,
-                                                                                        ['A', 'B', 'C', 'D'])
+                                                                                        model.vqa_candidates)
                 predictions = scores.argmax(-1).cpu()
             case "gen":
                 texts = [self.prompt] * batch_size

@@ -1,0 +1,6 @@
+name: pixtral
+config_name: mistral-community/pixtral-12b
+processor_path: "${model.config_name}"
+dtype: bfloat16
+attn_impl: eager
+vqa_tokens: ["A", "B", "C", "D"]

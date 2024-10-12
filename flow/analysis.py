@@ -129,6 +129,8 @@ class NodeEdgeDensities(BaseGraphMetric):
 
     @staticmethod
     def __call__(graph: Graph) -> list[Number]:
+        if graph.num_edges() == 0:
+            return [0, 0]
         num_layers = graph.gp.num_layers + 1
         num_tokens = graph.vp.token_num.a.max() + 1
         return [graph.num_vertices() / (num_layers * num_tokens),

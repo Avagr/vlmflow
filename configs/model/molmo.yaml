@@ -1,7 +1,7 @@
 name: molmo
 #config_name: allenai/Molmo-7B-D-0924
 config_name: allenai/Molmo-72B-0924
-processor_path: "${model.config_name}"
+processor_path: "${model.config_name}" 
 dtype: bfloat16
-img_token_id: null
 img_dims: null
+vqa_tokens: [" A", " B", " C", " D"]

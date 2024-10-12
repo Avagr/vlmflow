@@ -1,7 +1,7 @@
 defaults:
     - _self_
     - task: coco
-    - model: molmo
+    - model: pixtral
     - sampling_params: short
 
 prompt: "${model}_${task}_${task.eval_method}"
@@ -21,7 +21,7 @@ need_grad: false
 mixed_precision: false
 use_tf32: false
 
-disable_wandb: true
+disable_wandb: false
 show_tqdm: true
 resume_wandb_id: null
 detect_anomalies: false
@@ -39,5 +39,5 @@ last_token_logit_lens: false
 normalize_lens: true
 
 capture_residual_streams: true
-num_last_tokens: 40
+num_last_tokens: 1
 from_layer: 0

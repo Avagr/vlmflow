@@ -126,7 +126,7 @@ class SEEDBenchSingleImageEval(EvalWrapper):
                           f"A. {cand[0]}\nB. {cand[1]}\nC. {cand[2]}\nD. {cand[3]}\n"
                           f"{self.post_prompt}") for q, cand in zip(questions, choices)]
                 scores, generated_ids, num_generated_tokens = model.score_single_tokens(images, texts,
-                                                                                        ['A', 'B', 'C', 'D'])
+                                                                                        model.vqa_candidates)
                 predictions = scores.argmax(-1).cpu()
             case "gen":
                 texts = [self.prompt] * batch_size

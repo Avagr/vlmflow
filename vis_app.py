@@ -4,7 +4,6 @@ import pickle
 from graph_tool import Graph, PropertyMap  # noqa
 import graph_tool.all as gt  # noqa
 import numpy as np
-import numpy_indexed as npi
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -22,7 +21,7 @@ if __name__ == "__main__":
     @st.cache_resource
     def load_data():
         dataset_metrics = {}
-        for run_dir in run_dirs:
+        for run_dir in dirs_to_name:
             dataset_metrics[run_dir] = (
                 pd.read_parquet(f"{base_dir}/{run_dir}/results_table.parquet"),
                 pickle.load(open(f"{base_dir}/{run_dir}/node_pos_dict.pkl", "rb")),
@@ -36,15 +35,15 @@ if __name__ == "__main__":
 
     @st.cache_resource
     def process_metrics():
-        jaccard_index = {run_dir: [] for run_dir in run_dirs}
-        txt_difference = {run_dir: [] for run_dir in run_dirs}
-        img_difference = {run_dir: [] for run_dir in run_dirs}
-        node_densities = {run_dir: [] for run_dir in run_dirs}
-        edge_densities = {run_dir: [] for run_dir in run_dirs}
-        num_cross_modal_edges = {run_dir: [] for run_dir in run_dirs}
-        # num_cross_modal_edges_centrality = {run_dir: [] for run_dir in run_dirs}
-        global_clustering_coefficient = {run_dir: [] for run_dir in run_dirs}
-        metrics = {run_dir: [] for run_dir in run_dirs}
+        jaccard_index = {run_dir: [] for run_dir in dirs_to_name}
+        txt_difference = {run_dir: [] for run_dir in dirs_to_name}
+        img_difference = {run_dir: [] for run_dir in dirs_to_name}
+        node_densities = {run_dir: [] for run_dir in dirs_to_name}
+        edge_densities = {run_dir: [] for run_dir in dirs_to_name}
+        num_cross_modal_edges = {run_dir: [] for run_dir in dirs_to_name}
+        # num_cross_modal_edges_centrality = {run_dir: [] for run_dir in dirs_to_name}
+        # global_clustering_coefficient = {run_dir: [] for run_dir in dirs_to_name}
+        # metrics = {run_dir: [] for run_dir in dirs_to_name}
 
         reduction = partial(np.mean, axis=0)
 
@@ -63,73 +62,119 @@ if __name__ == "__main__":
                 jaccard_index[run_dir].extend(graph_metrics["jaccard_index"][idx])
                 txt_difference[run_dir].extend(graph_metrics["txt_difference"][idx])
                 img_difference[run_dir].extend(graph_metrics["img_difference"][idx])
-                node_densities[run_dir].extend(graph_metrics["node_density"][idx])
-                edge_densities[run_dir].extend(graph_metrics["edge_density"][idx])
-                num_cross_modal_edges[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
+                # node_densities[run_dir].extend(graph_metrics["node_density"][idx])
+                # edge_densities[run_dir].extend(graph_metrics["edge_density"][idx])
+                # num_cross_modal_edges[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
                 # num_cross_modal_edges_centrality[run_dir].extend(graph_metrics["cross_modal_edges"][idx])
-                global_clustering_coefficient[run_dir].extend(graph_metrics["global_clustering_coefficient"][idx])
+                # global_clustering_coefficient[run_dir].extend(graph_metrics["global_clustering_coefficient"][idx])
 
-                for (layer_num,
-                     token_num), img_contrib, img_centrality, txt_centrality, local_clustering_coefficient in zip(
-                    node_pos[idx], contrib["img_contrib"][idx], centrality["img_centrality"][idx],
-                    centrality["txt_centrality"][idx], clustering["local_clustering_coefficient"][idx]):
+                # for (layer_num,
+                #      token_num), img_contrib, img_centrality, txt_centrality, local_clustering_coefficient in zip(
+                #     node_pos[idx], contrib["img_contrib"][idx], centrality["img_centrality"][idx],
+                #     centrality["txt_centrality"][idx], clustering["local_clustering_coefficient"][idx]):
+                #
+                #     starting_tokens = layer_num == 0
+                #     num_img = (starting_tokens & (img_contrib == 1)).sum()
+                #     num_txt = starting_tokens.sum() - num_img
+                #
+                #     if len(img_contrib) == 0:
+                #         metrics[run_dir].append(np.zeros((num_layers, 4)))
+                #         continue # Skip empty layers
+                #
+                #     node_props = np.stack((img_contrib, img_centrality / (num_img if num_img > 0 else 1),
+                #                            txt_centrality / (num_txt if num_txt > 0 else 1),
+                #                            local_clustering_coefficient), axis=1)
+                #     grouped = npi.group_by(keys=layer_num, values=node_props, reduction=reduction)
+                #     if any((grouped[i][0] > i for i in range(num_layers))):
+                #         raise ValueError("Grouped layers are not in order, I hoped this wouldn't happen")
+                #     metrics[run_dir].append([grouped[i][1] for i in range(num_layers)])
 
-                    starting_tokens = layer_num == 0
-                    num_img = (starting_tokens & (img_contrib == 1)).sum()
-                    num_txt = starting_tokens.sum() - num_img
+        # metrics = {run_dir: np.array(m) for run_dir, m in metrics.items()}
+        # img_contribs = {run_dir: np.array(m[:, :, 0]) for run_dir, m in metrics.items()}
+        # img_centralities = {run_dir: np.array(m[:, :, 1]) for run_dir, m in metrics.items()}
+        # txt_centralities = {run_dir: np.array(m[:, :, 2]) for run_dir, m in metrics.items()}
+        # local_clustering_coefficients = {run_dir: np.array(m[:, :, 3]) for run_dir, m in metrics.items()}
 
-                    if len(img_contrib) == 0:
-                        metrics[run_dir].append(np.zeros((num_layers, 4)))
-                        continue # Skip empty layers
-
-                    node_props = np.stack((img_contrib, img_centrality / (num_img if num_img > 0 else 1),
-                                           txt_centrality / (num_txt if num_txt > 0 else 1),
-                                           local_clustering_coefficient), axis=1)
-                    grouped = npi.group_by(keys=layer_num, values=node_props, reduction=reduction)
-                    if any((grouped[i][0] > i for i in range(num_layers))):
-                        raise ValueError("Grouped layers are not in order, I hoped this wouldn't happen")
-                    metrics[run_dir].append([grouped[i][1] for i in range(num_layers)])
-
-        metrics = {run_dir: np.array(m) for run_dir, m in metrics.items()}
-        img_contribs = {run_dir: np.array(m[:, :, 0]) for run_dir, m in metrics.items()}
-        img_centralities = {run_dir: np.array(m[:, :, 1]) for run_dir, m in metrics.items()}
-        txt_centralities = {run_dir: np.array(m[:, :, 2]) for run_dir, m in metrics.items()}
-        local_clustering_coefficients = {run_dir: np.array(m[:, :, 3]) for run_dir, m in metrics.items()}
-
-        return (jaccard_index, txt_difference, img_difference, node_densities, edge_densities, num_cross_modal_edges,
-                 global_clustering_coefficient, img_contribs, img_centralities,
-                txt_centralities, local_clustering_coefficients)
+        return (
+            jaccard_index,
+            txt_difference,
+            img_difference,
+            # node_densities,
+            # edge_densities,
+            # num_cross_modal_edges,
+            #  global_clustering_coefficient,
+            # img_contribs, img_centralities,
+            # txt_centralities,
+            # local_clustering_coefficients
+        )
 
 
     processor = load_processor("llava-hf/llava-1.5-13b-hf")
 
-    run_dirs = {
-        "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "COCO Molmo 7B Captions",
-        "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "COCO LLaVA 13B Captions",
-        "Unlabeled_COCO/llava_3000_copy": "COCO LLaVA 13B Low Threshold",
-        "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
-        # "WhatsUp_A/llava_base_2024_09_14-22_49_27": "WhatsUp A",
-        # "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
-        # "WhatsUp_B/llava_base_2024_09_14-22_49_28": "WhatsUp B",
-        # "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
-        # "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11": "SEED Scene Understanding",
-        # "SEED-Bench-2_Part_2/llava_base_2024_09_14-22_52_11": "SEED Instance Identity",
-        # "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12": "SEED Instance Attributes",
-        # "SEED-Bench-2_Part_4/llava_base_2024_09_14-22_52_18": "SEED Instance Location",
-        # "SEED-Bench-2_Part_5/llava_base_2024_09_14-22_52_17": "SEED Instance Count",
-        # "SEED-Bench-2_Part_6/llava_base_2024_09_14-22_52_14": "SEED Spatial Relation",
-        # "SEED-Bench-2_Part_7/llava_base_2024_09_14-22_52_15": "SEED Instance Interaction",
-        # "SEED-Bench-2_Part_8/llava_base_2024_09_14-22_52_15": "SEED Visual Reasoning",
-        # "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17": "SEED Text Understanding",
-        # "SEED-Bench-2_Part_10/llava_base_2024_09_14-22_52_17": "SEED Celebrity Recognition",
-        # "SEED-Bench-2_Part_11/llava_base_2024_09_14-22_52_14": "SEED Landmark Recognition",
-        # "SEED-Bench-2_Part_12/llava_base_2024_09_14-22_52_14": "SEED Chart Understanding",
-        # "SEED-Bench-2_Part_13/llava_base_2024_09_14-22_52_14": "SEED Visual Referring Expression",
-        # "SEED-Bench-2_Part_14/llava_base_2024_09_14-22_52_14": "SEED Science Knowledge",
-        # "SEED-Bench-2_Part_15/llava_base_2024_09_14-22_52_15": "SEED Emotion Recognition",
-        # "SEED-Bench-2_Part_16/llava_base_2024_09_14-22_52_21": "SEED Visual Mathematics",
+    dirs_to_name = {
+        # "Unlabeled_COCO/llava_3000_copy": "COCO LLaVA 13B Low Threshold",
+
+        "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "LLaVA 13B COCO Captions",
+        "WhatsUp_A/llava_base_2024_09_14-22_49_27": "LLaVA 13B WhatsUp A",
+        "WhatsUp_B/llava_base_2024_09_14-22_49_28": "LLaVA 13B WhatsUp B",
+        "SEED-Bench-2_Part_1/llava_base_2024_09_14-22_52_11": "LLaVA 13B SEED Scene Understanding",
+        "SEED-Bench-2_Part_2/llava_base_2024_09_14-22_52_11": "LLaVA 13B SEED Instance Identity",
+        "SEED-Bench-2_Part_3/llava_base_2024_09_14-22_52_12": "LLaVA 13B SEED Instance Attributes",
+        "SEED-Bench-2_Part_4/llava_base_2024_09_14-22_52_18": "LLaVA 13B SEED Instance Location",
+        "SEED-Bench-2_Part_5/llava_base_2024_09_14-22_52_17": "LLaVA 13B SEED Instance Count",
+        "SEED-Bench-2_Part_6/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Spatial Relation",
+        "SEED-Bench-2_Part_7/llava_base_2024_09_14-22_52_15": "LLaVA 13B SEED Instance Interaction",
+        "SEED-Bench-2_Part_8/llava_base_2024_09_14-22_52_15": "LLaVA 13B SEED Visual Reasoning",
+        "SEED-Bench-2_Part_9/llava_base_2024_09_14-22_52_17": "LLaVA 13B SEED Text Understanding",
+        "SEED-Bench-2_Part_10/llava_base_2024_09_14-22_52_17": "LLaVA 13B SEED Celebrity Recognition",
+        "SEED-Bench-2_Part_11/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Landmark Recognition",
+        "SEED-Bench-2_Part_12/llava_base_2024_09_14-22_52_14": "LLaVA 13B EED Chart Understanding",
+        "SEED-Bench-2_Part_13/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Visual Referring Expression",
+        "SEED-Bench-2_Part_14/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Science Knowledge",
+        "SEED-Bench-2_Part_15/llava_base_2024_09_14-22_52_15": "LLaVA 13B SEED Emotion Recognition",
+        "SEED-Bench-2_Part_16/llava_base_2024_09_14-22_52_21": "LLaVA 13B SEED Visual Mathematics",
         # "Unlabeled_COCO/llava_2000_2024_09_15-01_57_15": "COCO Captions",
+        # "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
         # "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57": "COCO Captions Reverse",
+        # "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
+        "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "Molmo 7B COCO Captions",
+        "WhatsUp_A/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp A",
+        "WhatsUp_B/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp B",
+        "SEED-Bench-2_Part_1/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Scene Understanding",
+        "SEED-Bench-2_Part_2/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Instance Identity",
+        "SEED-Bench-2_Part_3/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Instance Attributes",
+        "SEED-Bench-2_Part_4/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Instance Location",
+        "SEED-Bench-2_Part_5/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Instance Count",
+        "SEED-Bench-2_Part_6/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Spatial Relation",
+        "SEED-Bench-2_Part_7/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Instance Interaction",
+        "SEED-Bench-2_Part_8/molmo_fixed_abcd_2024_10_10-17_46_01": "Molmo 7B SEED Visual Reasoning",
+        "SEED-Bench-2_Part_9/molmo_fixed_abcd_2024_10_10-17_46_02": "Molmo 7B SEED Text Understanding",
+        "SEED-Bench-2_Part_10/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Celebrity Recognition",
+        "SEED-Bench-2_Part_11/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Landmark Recognition",
+        "SEED-Bench-2_Part_12/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Chart Understanding",
+        "SEED-Bench-2_Part_13/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Visual Referring Expression",
+        "SEED-Bench-2_Part_14/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Science Knowledge",
+        "SEED-Bench-2_Part_15/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Emotion Recognition",
+        "SEED-Bench-2_Part_16/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Visual Mathematics",
+        # "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
+        # "WhatsUp_A/": "Molmo 72B WhatsUp A",
+        "WhatsUp_B/molmo_72b_abcd_2024_10_12-02_38_50": "Molmo 72B WhatsUp B",
+        # "SEED-Bench-2_Part_1/": "Molmo 72B SEED Scene Understanding",
+        # "SEED-Bench-2_Part_2/": "Molmo 72B SEED Instance Identity",
+        # "SEED-Bench-2_Part_3/": "Molmo 72B SEED Instance Attributes",
+        # "SEED-Bench-2_Part_4/": "Molmo 72B SEED Instance Location",
+        # "SEED-Bench-2_Part_5/": "Molmo 72B SEED Instance Count",
+        # "SEED-Bench-2_Part_6/": "Molmo 72B SEED Spatial Relation",
+        # "SEED-Bench-2_Part_7/": "Molmo 72B SEED Instance Interaction",
+        # "SEED-Bench-2_Part_8/": "Molmo 72B SEED Visual Reasoning",
+        "SEED-Bench-2_Part_9/molmo_72b_abcd_2024_10_12-08_49_30": "Molmo 72B SEED Text Understanding",
+        "SEED-Bench-2_Part_10/molmo_72b_abcd_2024_10_12-06_05_53": "Molmo 72B SEED Celebrity Recognition",
+        # "SEED-Bench-2_Part_11/": "Molmo 72B SEED Landmark Recognition",
+        # "SEED-Bench-2_Part_12/": "Molmo 72B SEED Chart Understanding",
+        "SEED-Bench-2_Part_13/molmo_72b_abcd_2024_10_12-02_48_43": "Molmo 72B SEED Visual Referring Expression",
+        "SEED-Bench-2_Part_14/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Science Knowledge",
+        "SEED-Bench-2_Part_15/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Emotion Recognition",
+        "SEED-Bench-2_Part_16/molmo_72b_abcd_2024_10_12-02_48_34": "Molmo 72B SEED Visual Mathematics",
     }
 
     colors = [
@@ -139,8 +184,6 @@ if __name__ == "__main__":
     ]
 
     base_dir = "/home/projects/shimon/agroskin/projects/vlmflow/results"
-
-
 
 
     @st.cache_resource
@@ -163,86 +206,120 @@ if __name__ == "__main__":
         pickle.dump(processed_metrics, open("processed_metrics.pkl", "wb"))
     else:
         processed_metrics = unpickle()
-        for d in run_dirs:
+        for d in dirs_to_name:
             if d not in processed_metrics[0]:
                 dataset_metrics = load_data()
                 processed_metrics = process_metrics()
                 pickle.dump(processed_metrics, open("processed_metrics.pkl", "wb"))
 
-
-    (jaccard_index, txt_difference, img_difference, node_densities, edge_densities, num_cross_modal_edges,
-     global_clustering_coefficient, img_contribs, img_centralities, txt_centralities,
-     local_clustering_coefficients) = processed_metrics
+    (
+        jaccard_index,
+        txt_difference,
+        img_difference,
+        # node_densities,
+        # edge_densities,
+        # num_cross_modal_edges,
+        # global_clustering_coefficient,
+        # img_contribs,
+        # img_centralities,
+        # txt_centralities,
+        # local_clustering_coefficients
+    ) = processed_metrics
 
     st.header("Graph Metrics")
 
-    dir_names = [run_dirs[run_dir] for run_dir in run_dirs]
-    # Plot a stacked bar char of jaccard_index, txt_Difference, img_difference for each run_dir
-    fig = make_subplots(rows=1, cols=1)
+    llava_run_dirs = [run_dir for run_dir in dirs_to_name if dirs_to_name[run_dir].startswith("LLaVA 13B")]
+    molmo_7b_run_dirs = [run_dir for run_dir in dirs_to_name if dirs_to_name[run_dir].startswith("Molmo 7B")]
+    molmo_72b_run_dirs = [run_dir for run_dir in dirs_to_name if dirs_to_name[run_dir].startswith("Molmo 72B")]
+    llava_dir_names = [dirs_to_name[run_dir] for run_dir in llava_run_dirs]
+    molmo_7b_dir_names = [dirs_to_name[run_dir] for run_dir in molmo_7b_run_dirs]
+    molmo_72b_dir_names = [dirs_to_name[run_dir] for run_dir in molmo_72b_run_dirs]
+    fig = make_subplots(rows=3, cols=1)
     fig.add_trace(
-        go.Bar(x=dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in run_dirs], name="Text Difference"))
+        go.Bar(x=llava_dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in llava_run_dirs],
+               name="Text Difference"), row=1, col=1)
     fig.add_trace(
-        go.Bar(x=dir_names, y=[2 * np.nanmean(jaccard_index[run_dir]) for run_dir in run_dirs], name="Jaccard Index"))
+        go.Bar(x=llava_dir_names, y=[2 * np.nanmean(jaccard_index[run_dir]) for run_dir in llava_run_dirs],
+               name="Jaccard Index"), row=1, col=1)
     fig.add_trace(
-        go.Bar(x=dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in run_dirs], name="Image Difference"))
+        go.Bar(x=llava_dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in llava_run_dirs],
+               name="Image Difference"), row=1, col=1)
+    fig.add_trace(
+        go.Bar(x=molmo_7b_dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in molmo_7b_run_dirs],
+               name="Text Difference"), row=2, col=1)
+    fig.add_trace(
+        go.Bar(x=molmo_7b_dir_names, y=[2 * np.nanmean(jaccard_index[run_dir]) for run_dir in molmo_7b_run_dirs],
+               name="Jaccard Index"), row=2, col=1)
+    fig.add_trace(
+        go.Bar(x=molmo_7b_dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in molmo_7b_run_dirs],
+               name="Image Difference"), row=2, col=1)
+    fig.add_trace(
+        go.Bar(x=molmo_72b_dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in molmo_72b_run_dirs],
+                name="Text Difference"), row=3, col=1)
+    fig.add_trace(
+        go.Bar(x=molmo_72b_dir_names, y=[2 * np.nanmean(jaccard_index[run_dir]) for run_dir in molmo_72b_run_dirs],
+                name="Jaccard Index"), row=3, col=1)
+    fig.add_trace(
+        go.Bar(x=molmo_72b_dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in molmo_72b_run_dirs],
+                name="Image Difference"), row=3, col=1)
     fig.update_layout(barmode="stack")
     st.plotly_chart(fig)
 
-    st.header("Node Metrics")
-
-    # Plot histograms for each run_dir for densities, cross_modal_edges, num_cross_modal_edges_centrality, global_clustering_coefficient
-    fig = make_subplots(rows=2, cols=2,
-                        subplot_titles=["Node Density", 'Edge Density', "Num Cross Modal Edges",
-                                        "Global Clustering Coefficient"])
-    for run_dir, color in zip(list(run_dirs.keys()), colors):
-        hist_args = {"histnorm": "probability density", "legendgroup": run_dirs[run_dir], "name": run_dirs[run_dir],
-                     "hovertemplate": "%{x}", "marker": {"color": color}}
-        fig.add_trace(go.Histogram(x=node_densities[run_dir], **hist_args), row=1, col=1)
-        hist_args["showlegend"] = False
-        fig.add_trace(go.Histogram(x=edge_densities[run_dir], **hist_args), row=1, col=2)
-
-        fig.add_trace(go.Histogram(x=num_cross_modal_edges[run_dir], **hist_args), row=2, col=1)
-        fig.add_trace(go.Histogram(x=global_clustering_coefficient[run_dir], **hist_args), row=2, col=2)
-
-    fig.update_xaxes(range=[0, 0.4], row=1, col=1)
-    fig.update_layout(height=1000, width=1300, barmode="overlay")
-    fig.update_traces(opacity=0.5)
-    st.plotly_chart(fig)
-
-    fig = make_subplots(rows=2, cols=2,
-                        subplot_titles=["Image Contribution", "Image Centrality", "Text Centrality",
-                                        "Local Clustering Coefficient"])
-
-    for run_dir, color in zip(list(run_dirs.keys()), colors):
-        hist_args = {"histnorm": "probability density", "legendgroup": run_dirs[run_dir], "name": run_dirs[run_dir],
-                     "hovertemplate": "%{x}", "marker": {"color": color}, "xbins": {"start": 0.01}}
-
-        if "COCO" in run_dir:
-            img_contribs_data = np.random.choice(img_contribs[run_dir].flatten(), size=10000, replace=False)
-            img_centralities_data = np.random.choice(img_centralities[run_dir].flatten(), size=10000, replace=False)
-            txt_centralities_data = np.random.choice(txt_centralities[run_dir].flatten(), size=10000, replace=False)
-            local_clustering_coefficients_data = np.random.choice(local_clustering_coefficients[run_dir].flatten(),
-                                                                  size=10000, replace=False)
-        else:
-            img_contribs_data = img_contribs[run_dir].flatten()
-            img_centralities_data = img_centralities[run_dir].flatten()
-            txt_centralities_data = txt_centralities[run_dir].flatten()
-            local_clustering_coefficients_data = local_clustering_coefficients[run_dir].flatten()
-
-        fig.add_trace(go.Histogram(x=img_contribs_data, **hist_args), row=1, col=1)
-        hist_args["showlegend"] = False
-        fig.add_trace(go.Histogram(x=img_centralities_data, **hist_args), row=1, col=2)
-        fig.add_trace(go.Histogram(x=txt_centralities_data, **hist_args), row=2, col=1)
-        fig.add_trace(go.Histogram(x=local_clustering_coefficients_data, **hist_args), row=2, col=2)
-
-    fig.update_layout(height=1000, width=1300, barmode="overlay")
-    fig.update_yaxes(type="log", row=1, col=1)
-    fig.update_yaxes(type="log", row=1, col=2)
-    fig.update_yaxes(type="log", row=2, col=1)
-    fig.update_traces(opacity=0.5)
-
-
-    st.plotly_chart(fig)
+    # st.header("Node Metrics")
+    #
+    # # Plot histograms for each run_dir for densities, cross_modal_edges, num_cross_modal_edges_centrality, global_clustering_coefficient
+    # fig = make_subplots(rows=2, cols=2,
+    #                     subplot_titles=["Node Density", 'Edge Density', "Num Cross Modal Edges",
+    #                                     "Global Clustering Coefficient"])
+    # for run_dir, color in zip(list(dirs_to_name.keys()), colors):
+    #     hist_args = {"histnorm": "probability density", "legendgroup": dirs_to_name[run_dir], "name": dirs_to_name[run_dir],
+    #                  "hovertemplate": "%{x}", "marker": {"color": color}}
+    #     fig.add_trace(go.Histogram(x=node_densities[run_dir], **hist_args), row=1, col=1)
+    #     hist_args["showlegend"] = False
+    #     fig.add_trace(go.Histogram(x=edge_densities[run_dir], **hist_args), row=1, col=2)
+    #
+    #     fig.add_trace(go.Histogram(x=num_cross_modal_edges[run_dir], **hist_args), row=2, col=1)
+    #     fig.add_trace(go.Histogram(x=global_clustering_coefficient[run_dir], **hist_args), row=2, col=2)
+    #
+    # fig.update_xaxes(range=[0, 0.4], row=1, col=1)
+    # fig.update_layout(height=1000, width=1300, barmode="overlay")
+    # fig.update_traces(opacity=0.5)
+    # st.plotly_chart(fig)
+    #
+    # fig = make_subplots(rows=2, cols=2,
+    #                     subplot_titles=["Image Contribution", "Image Centrality", "Text Centrality",
+    #                                     "Local Clustering Coefficient"])
+    #
+    # for run_dir, color in zip(list(dirs_to_name.keys()), colors):
+    #     hist_args = {"histnorm": "probability density", "legendgroup": dirs_to_name[run_dir], "name": dirs_to_name[run_dir],
+    #                  "hovertemplate": "%{x}", "marker": {"color": color}, "xbins": {"start": 0.01}}
+    #
+    #     if "COCO" in run_dir:
+    #         img_contribs_data = np.random.choice(img_contribs[run_dir].flatten(), size=10000, replace=False)
+    #         img_centralities_data = np.random.choice(img_centralities[run_dir].flatten(), size=10000, replace=False)
+    #         txt_centralities_data = np.random.choice(txt_centralities[run_dir].flatten(), size=10000, replace=False)
+    #         local_clustering_coefficients_data = np.random.choice(local_clustering_coefficients[run_dir].flatten(),
+    #                                                               size=10000, replace=False)
+    #     else:
+    #         img_contribs_data = img_contribs[run_dir].flatten()
+    #         img_centralities_data = img_centralities[run_dir].flatten()
+    #         txt_centralities_data = txt_centralities[run_dir].flatten()
+    #         local_clustering_coefficients_data = local_clustering_coefficients[run_dir].flatten()
+    #
+    #     fig.add_trace(go.Histogram(x=img_contribs_data, **hist_args), row=1, col=1)
+    #     hist_args["showlegend"] = False
+    #     fig.add_trace(go.Histogram(x=img_centralities_data, **hist_args), row=1, col=2)
+    #     fig.add_trace(go.Histogram(x=txt_centralities_data, **hist_args), row=2, col=1)
+    #     fig.add_trace(go.Histogram(x=local_clustering_coefficients_data, **hist_args), row=2, col=2)
+    #
+    # fig.update_layout(height=1000, width=1300, barmode="overlay")
+    # fig.update_yaxes(type="log", row=1, col=1)
+    # fig.update_yaxes(type="log", row=1, col=2)
+    # fig.update_yaxes(type="log", row=2, col=1)
+    # fig.update_traces(opacity=0.5)
+    #
+    #
+    # st.plotly_chart(fig)
 
     # st.header("Node Metrics by Layer")
     # tabs = st.tabs([f"{layer}" for layer in range(0, 41)])
@@ -252,8 +329,8 @@ if __name__ == "__main__":
     #                         subplot_titles=["Image Contribution", "Image Centrality", "Text Centrality",
     #                                         "Local Clustering Coefficient"])
     #
-    #     for run_dir, color in zip(list(run_dirs.keys()), colors):
-    #         hist_args = {"histnorm": "probability density", "legendgroup": run_dirs[run_dir], "name": run_dirs[run_dir],
+    #     for run_dir, color in zip(list(dirs_to_name.keys()), colors):
+    #         hist_args = {"histnorm": "probability density", "legendgroup": dirs_to_name[run_dir], "name": dirs_to_name[run_dir],
     #                      "hovertemplate": "%{x}", "marker": {"color": color}}
     #         fig.add_trace(go.Histogram(x=img_contribs[run_dir][:, layer], **hist_args), row=1, col=1)
     #         hist_args["showlegend"] = False

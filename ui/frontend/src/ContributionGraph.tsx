@@ -375,7 +375,7 @@ const ContributionGraph = ({args}: ComponentProps) => {
     const totalW = xScale(nTokens + 2) * scaleFactor
     const totalH = yScale(-4) * scaleFactor
     useEffect(() => {
-        Streamlit.setFrameHeight(totalH + 30)
+        Streamlit.setFrameHeight(totalH + 100)
     }, [totalH])
 
     const colorScale = d3.scaleLinear(
@@ -646,8 +646,8 @@ const ContributionGraph = ({args}: ComponentProps) => {
 
     // return <svg ref={svgRef} width={totalW} height={totalH} style={{ border: '3px solid black' }}></svg>
     return (
-        <div>
-            <svg ref={svgRef} width={totalW} height={totalH} style={{border: '3px solid black'}}></svg>
+        <div  style={{ overflowX: 'auto', border: '3px solid black' }}>
+            <svg ref={svgRef} width={totalW} height={totalH}></svg>
             <div ref={tooltipRef} style={{
                 position: 'absolute',
                 display: 'none',

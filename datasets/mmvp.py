@@ -115,9 +115,9 @@ class MMVPEval:
                 texts = [(f"{self.pre_prompt}{q}{self.mid_prompt}"
                           f"A. {opt1}\nB. {opt2}\n"
                           f"{self.post_prompt}") for q, (opt1, opt2) in zip(questions, options)]
-                scores_1 = model.score_single_tokens(images_1, texts, ['A', 'B'])
+                scores_1 = model.score_single_tokens(images_1, texts, )
                 predictions_1 = scores_1.cpu().argmax(-1)
-                scores_2 = model.score_single_tokens(images_2, texts, ['A', 'B'])
+                scores_2 = model.score_single_tokens(images_2, texts, )
                 predictions_2 = scores_2.cpu().argmax(-1)
                 predictions = [(p1.item(), p2.item()) for p1, p2 in zip(predictions_1, predictions_2)]
             case _:

@@ -26,11 +26,10 @@ def run(cfg: DictConfig):
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-
-
+    print(OmegaConf.to_yaml(cfg))
     if cfg.disable_wandb:
         os.environ["WANDB_MODE"] = "disabled"
-        print(OmegaConf.to_yaml(cfg))
+
 
     if cfg.resume_wandb_id is None:
         run_id = wandb.util.generate_id()
