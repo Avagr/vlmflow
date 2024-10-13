@@ -91,10 +91,10 @@ class GraphTensorCallback(Callback):
 
     def __call__(self, model_wrapper, idx, *_):
         batch_size = len(idx)
-        graph_tensors = [get_contribution_matrices(model_wrapper.model, i, head_batch_size=self.head_batch_size) for i
-                         in range(batch_size)]
+        graph_tensors = [get_contribution_matrices(model_wrapper.model, i) for i in range(batch_size)]
 
         for i, tensors in zip(idx.tolist(), graph_tensors):
+            tensors = [[t.cpu() for t in tens] for tens in tensors]
             graph_file = self.graph_save_dir / f"{i}_graph_tensors.pkl"
             torch.save(tensors, graph_file)
             self.graph_paths[i] = str(graph_file.resolve())

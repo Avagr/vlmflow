@@ -7,8 +7,8 @@
 from typing import Tuple
 
 import einops
-import torch
 from jaxtyping import Float
+import torch
 
 from models.transparent_models import TransparentLlava
 
@@ -63,7 +63,7 @@ def get_mlp_contributions(
     """
 
     contributions = get_contributions(
-        torch.stack((mlp_out.cpu(), resid_mid.cpu())), resid_post.cpu(), distance_norm
+        torch.stack((mlp_out, resid_mid.to(mlp_out.device))), resid_post.to(mlp_out.device), distance_norm
     )
     return contributions[0], contributions[1]
 
@@ -106,8 +106,14 @@ def apply_threshold_and_renormalize(
         c_residual / denom,
     )
 
+
 @torch.compile
-def pairwise_distances(rearranged, whole, p): 
+def pairwise_distances(v, pattern, o_weight, whole, p):
+    decomposed_attn = torch.einsum("khd,hqk,hdm->qkhm", v, pattern, o_weight)
+    rearranged = einops.rearrange(
+        decomposed_attn,
+        "pos key_pos head d_model -> key_pos head pos d_model",
+    )
     return torch.nn.functional.pairwise_distance(rearranged, whole.expand(rearranged.shape), p=p)
 
 
@@ -115,7 +121,6 @@ def pairwise_distances(rearranged, whole, p):
 def get_contribution_matrices(
         model: TransparentLlava,
         batch_i: int,
-        head_batch_size: int
 ) -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
     n_layers = model.model_info().n_layers
     n_heads = model.model_info().n_heads
@@ -130,12 +135,12 @@ def get_contribution_matrices(
     for layer in range(n_layers):
         c_attn, c_resid_attn = get_attention_contributions_efficiently(
             model, layer, batch_i, n_tokens, n_heads,
-            distance_norm, head_batch_size=head_batch_size
+            distance_norm
         )
         contrib = c_attn[batch_i].sum(dim=-1)
 
-        attn_contributions.append(contrib.cpu().squeeze())
-        res_attn_contributions.append(c_resid_attn.cpu().squeeze())
+        attn_contributions.append(contrib.squeeze())
+        res_attn_contributions.append(c_resid_attn.squeeze())
 
         c_ffn, c_resid_ffn = get_mlp_contributions(
             resid_mid=model.residual_after_attn(layer)[batch_i].unsqueeze(0),
@@ -143,26 +148,19 @@ def get_contribution_matrices(
             mlp_out=model.ffn_out(layer)[batch_i].unsqueeze(0),
         )
 
-        ffn_contributions.append(c_ffn.cpu().squeeze())
-        res_ffn_contributions.append(c_resid_ffn.cpu().squeeze())
+        ffn_contributions.append(c_ffn.squeeze())
+        res_ffn_contributions.append(c_resid_ffn.squeeze())
 
     return attn_contributions, res_attn_contributions, ffn_contributions, res_ffn_contributions
 
- 
-def get_attention_contributions_efficiently(model, layer, batch_i, n_tokens, n_heads, distance_norm, head_batch_size=1):
-    one_off = model.residual_in(layer)[batch_i].unsqueeze(0)
-    whole = model.residual_after_attn(layer)[batch_i].unsqueeze(0)
-    distances = []
-    for head_i in range(0, n_heads, head_batch_size):
-        decomposed_attn = model.decomposed_attn_head_slice(head_i, head_i + head_batch_size, batch_i, layer)
 
-        rearranged = einops.rearrange(
-            decomposed_attn,
-            "pos key_pos head d_model -> key_pos head pos d_model",
-        )
-        distances.append(pairwise_distances(rearranged, whole.to(rearranged.device), p=distance_norm))
-    distance = torch.cat(distances, dim=1).flatten(start_dim=0, end_dim=1)
-    distance = torch.cat([distance, torch.nn.functional.pairwise_distance(one_off.to(whole.device), whole, p=distance_norm)],
+def get_attention_contributions_efficiently(model, layer, batch_i, n_tokens, n_heads, distance_norm):
+    v, pattern, o_weight = model.decomposed_attn_components(batch_i, layer)
+    o_weight = o_weight.to(v.device, v.dtype, copy=True)
+    one_off = model.residual_in(layer)[batch_i].unsqueeze(0).to(v.device)
+    whole = model.residual_after_attn(layer)[batch_i].unsqueeze(0).to(v.device)
+    distance = pairwise_distances(v, pattern, o_weight, whole, distance_norm).flatten(start_dim=0, end_dim=1)
+    distance = torch.cat([distance, torch.nn.functional.pairwise_distance(one_off, whole, p=distance_norm)],
                          dim=0).unsqueeze(1)
     whole_norm = torch.norm(whole, p=distance_norm, dim=-1)
     distance = (whole_norm - distance).clip(min=1e-5)

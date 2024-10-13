@@ -204,6 +204,12 @@ class TransparentLlm(ABC, nn.Module):
         pass
 
     @abstractmethod
+    def decomposed_attn_components(
+            self, batch_i: int, layer: int
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        pass
+
+    @abstractmethod
     def decomposed_attn_head(
             self, head_i: int, batch_i: int, layer: int
     ) -> Float[torch.Tensor, "source target d_model"]:

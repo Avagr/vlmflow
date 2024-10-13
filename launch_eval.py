@@ -21,7 +21,7 @@ def run(cfg: DictConfig):
     torch.autograd.set_detect_anomaly(cfg.detect_anomalies, check_nan=True)
     torch.backends.cuda.matmul.allow_tf32 = cfg.use_tf32
     torch.backends.cudnn.allow_tf32 = cfg.use_tf32
-    torch._dynamo.config.cache_size_limit = 16
+    torch._dynamo.config.cache_size_limit = 128
 
     set_random_seed(cfg.seed)
 

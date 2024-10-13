@@ -16,6 +16,8 @@ def get_decomposed_attention(v, pattern, o_weight):
     return torch.einsum("khd,hqk,hdm->qkhm", v, pattern, o_weight.to(dtype=v.dtype, device=v.device))
 
 class TransparentLlava(TransparentLlm):
+
+
     image_token_id = 32000
 
     def __init__(self, name, llava, processor, device, dtype=torch.bfloat16, store_on_cpu=False):
@@ -226,6 +228,18 @@ class TransparentLlava(TransparentLlm):
         return decomposed_attn
 
     @torch.no_grad()
+    def decomposed_attn_components(self, batch_i: int, layer: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
+        v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.n_heads, self.d_model // self.n_heads)[
+            batch_i]
+
+        pattern = self.last_run_attentions[layer].to(dtype=v.dtype, device=v.device)
+        pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
+        pattern = pattern[batch_i]
+        o_weight = self.layers[layer].self_attn.o_proj.weight.T.view(self.n_heads, self.config.head_dim, self.d_model)
+        return v, pattern, o_weight
+
+    @torch.no_grad()
     def decomposed_attn(self, batch_i: int, layer: int) -> Float[torch.Tensor, "source target head d_model"]:
         batch_size, num_tokens = self.last_run_logits_shape[:2]
         v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.n_heads, self.d_model // self.n_heads)[
@@ -312,21 +326,23 @@ class TransparentPixtral(TransparentLlava):
         pattern = pattern[batch_i, head_start:head_end]
         o_weight = self.layers[layer].self_attn.o_proj.weight.T.view(self.n_heads, self.config.head_dim, self.d_model)[
                    head_start:head_end]
-        # z = einsum(
-        #     "key_pos head d_head, "
-        #     "head query_pos key_pos -> "
-        #     "query_pos key_pos head d_head",
-        #     v,
-        #     pattern,
-        # )
-        # decomposed_attn = einsum(
-        #     "pos key_pos head d_head, "
-        #     "head d_head d_model -> "
-        #     "pos key_pos head d_model",
-        #     z.to(dtype=o_weight.dtype, device=o_weight.device),
-        #     o_weight
-        # )
+
         return get_decomposed_attention(v, pattern, o_weight)
+
+    @torch.no_grad()
+    def decomposed_attn_components(self, batch_i: int, layer: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
+        v = self.value_out_hooks[layer].value.view(batch_size, num_tokens, self.config.num_key_value_heads,
+                                                   self.config.head_dim)
+
+        v = v.repeat_interleave(self.n_heads // self.config.num_key_value_heads, dim=2, output_size=self.n_heads)
+        v = v[batch_i]
+
+        pattern = self.last_run_attentions[layer].to(dtype=v.dtype, device=v.device)
+        pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
+        pattern = pattern[batch_i]
+        o_weight = self.layers[layer].self_attn.o_proj.weight.T.view(self.n_heads, self.config.head_dim, self.d_model)
+        return v, pattern, o_weight
 
 
 class TransparentMolmo(TransparentLlm):
@@ -530,6 +546,23 @@ class TransparentMolmo(TransparentLlm):
             o_weight
         )
         return decomposed_attn
+
+    @torch.no_grad()
+    def decomposed_attn_components(self, batch_i: int, layer: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size, num_tokens = self.last_run_logits_shape[:2]
+        qkv = self.qkv_out_hooks[layer].value
+
+        _, _, v = qkv.split(self.molmo.model.transformer.blocks[layer].fused_dims, dim=-1)
+        v = v.view(batch_size, num_tokens, self.config.effective_n_kv_heads, self.config.d_model // self.config.n_heads)
+        v = v.repeat_interleave(self.config.n_heads // self.config.effective_n_kv_heads, dim=2,
+                                output_size=self.config.n_heads)
+        v = v[batch_i]
+
+        pattern = self.last_run_attentions[layer]
+        pattern = torch.where(torch.isnan(pattern), torch.zeros_like(pattern), pattern)
+        pattern = pattern[batch_i].to(dtype=v.dtype, device=v.device)
+        o_weight = self.layers[layer].attn_out.weight.T.view(self.n_heads, self.d_model // self.n_heads, self.d_model)
+        return v, pattern, o_weight
 
     def decomposed_attn(self, batch_i: int, layer: int) -> Float[torch.Tensor, "source target head d_model"]:
         raise NotImplementedError
