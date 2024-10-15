@@ -15,7 +15,7 @@ class SEEDBenchSingleImage(BaseDataset):
     answer_map = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
     table_columns = ["idx", "image", "prediction", "answer"]
 
-    def __init__(self, task_num: int, json_path: Path, root_dir: Path):
+    def __init__(self, task_num: int, json_path: Path, root_dir: Path, dataset_from: int = 0, dataset_to: int = None):
         """
         :param task_num: number between 1 and 16
         :param json_path: path to the json question file
@@ -27,6 +27,8 @@ class SEEDBenchSingleImage(BaseDataset):
         self.task_num = task_num
         self.root_dir = root_dir
         self.json_path = json_path
+        self.dataset_from = dataset_from
+        self.dataset_to = dataset_to
         with open(json_path, 'r') as f:
             data = json.load(f)
         for k, v in data['question_type'].items():
@@ -34,6 +36,8 @@ class SEEDBenchSingleImage(BaseDataset):
                 self.question_type = k
                 break
         self.questions: list[dict[str, str]] = [x for x in data['questions'] if x['question_type_id'] == self.task_num]
+        if dataset_from is not None and dataset_to is not None:
+            self.questions = self.questions[dataset_from:dataset_to]
 
     def __len__(self):
         return len(self.questions)
@@ -46,10 +50,10 @@ class SEEDBenchSingleImage(BaseDataset):
             img_root_dir = self.root_dir
         image = Image.open(img_root_dir / question['data_id']).convert('RGB')
         choices = [question[f"choice_{i}"] for i in "abcd"]
-        return idx, image, question['question'], choices, self.answer_map[question['answer'].strip()]
+        return idx + self.dataset_from, image, question['question'], choices, self.answer_map[question['answer'].strip()]
 
     def table_repr(self, idx, prediction, img_as_object=True):
-        question = self.questions[idx]
+        question = self.questions[idx - self.dataset_from]
         if question['data_source'] == 'cc3m':
             img_path = f'cc3m-images/{question['data_id']}'
         else:

@@ -1,4 +1,0 @@
-name: cogvlm
-path: THUDM/cogvlm-chat-hf
-processor_path: lmsys/vicuna-7b-v1.5
-dtype: bfloat16

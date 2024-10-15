@@ -61,6 +61,7 @@ def create_model(cfg):
                                                                     device_map='auto',
                                                                     attn_implementation=cfg.model.attn_impl)
             processor = AutoProcessor.from_pretrained(cfg.model.processor_path)
+            processor.image_processor.size["longest_edge"] = 640
             pixtral.generation_config.pad_token_id = processor.tokenizer.eos_token_id
             model = TransparentPixtral(cfg.model.name, pixtral, processor, pixtral.device, dtype, store_on_cpu=False)
             model = GenerativeWrapper(processor, model, pixtral.device, dtype, list(cfg.model.vqa_tokens),
@@ -76,7 +77,8 @@ def create_eval_task(cfg):
     sampling_config = GenerationConfig(**cfg.sampling_params)
     match cfg.task.name:
         case "SEED-Bench-2":
-            dataset = SEEDBenchSingleImage(cfg.task.task_num, Path(cfg.task.json_path), Path(cfg.task.image_root))
+            dataset = SEEDBenchSingleImage(cfg.task.task_num, Path(cfg.task.json_path), Path(cfg.task.image_root),
+                                           cfg.task.dataset_from, cfg.task.dataset_to)
             collate = SEEDBenchCollate()
             wrapper = SEEDBenchSingleImageEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
 
@@ -90,11 +92,6 @@ def create_eval_task(cfg):
             dataset = WhatsUp(Path(cfg.task.image_root), json_path, permute_options=cfg.task.permute)
             collate = WhatsUpCollate()
             wrapper = WhatsUpEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
-
-        case "GQA":
-            dataset = GQA(Path(cfg.task.test_question_file), Path(cfg.task.img_dir))
-            collate = GQACollate()
-            wrapper = GQAEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
 
         case "UnlabeledCOCO":
             dataset = UnlabeledCoco(Path(cfg.task.img_dir), Path(cfg.task.img_descriptions_file), cfg.task.dataset_from,

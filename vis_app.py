@@ -47,14 +47,15 @@ if __name__ == "__main__":
 
         reduction = partial(np.mean, axis=0)
 
-        for run_dir, (table, node_pos, contrib, centrality, clustering, graph_metrics) in dataset_metrics.items():
-
+        for run_dir, (table, node_pos, contrib, centrality, clustering, graph_metrics) in tqdm(dataset_metrics.items()):
             if "llava" in run_dir:
                 num_layers = 41
             elif "molmo_72b" in run_dir:
                 num_layers = 81
             elif "molmo" in run_dir:
                 num_layers = 29
+            elif "pixtral" in run_dir:
+                num_layers = 41
             else:
                 raise ValueError("Unknown model")
 
@@ -112,7 +113,8 @@ if __name__ == "__main__":
     processor = load_processor("llava-hf/llava-1.5-13b-hf")
 
     dirs_to_name = {
-        # "Unlabeled_COCO/llava_3000_copy": "COCO LLaVA 13B Low Threshold",
+
+        # LLaVA 13B
 
         "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "LLaVA 13B COCO Captions",
         "WhatsUp_A/llava_base_2024_09_14-22_49_27": "LLaVA 13B WhatsUp A",
@@ -137,6 +139,9 @@ if __name__ == "__main__":
         # "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
         # "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57": "COCO Captions Reverse",
         # "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
+
+        # MOLMO 7B
+
         "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "Molmo 7B COCO Captions",
         "WhatsUp_A/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp A",
         "WhatsUp_B/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp B",
@@ -156,25 +161,50 @@ if __name__ == "__main__":
         "SEED-Bench-2_Part_14/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Science Knowledge",
         "SEED-Bench-2_Part_15/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Emotion Recognition",
         "SEED-Bench-2_Part_16/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Visual Mathematics",
+
+        # MOLMO 72B
+
         # "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
-        # "WhatsUp_A/": "Molmo 72B WhatsUp A",
-        "WhatsUp_B/molmo_72b_abcd_2024_10_12-02_38_50": "Molmo 72B WhatsUp B",
+        # "WhatsUp_A/molmo_72b_abcd_2024_10_12-15_27_10": "Molmo 72B WhatsUp A",
+        # "WhatsUp_B/molmo_72b_abcd_2024_10_12-02_38_50": "Molmo 72B WhatsUp B",
         # "SEED-Bench-2_Part_1/": "Molmo 72B SEED Scene Understanding",
         # "SEED-Bench-2_Part_2/": "Molmo 72B SEED Instance Identity",
         # "SEED-Bench-2_Part_3/": "Molmo 72B SEED Instance Attributes",
         # "SEED-Bench-2_Part_4/": "Molmo 72B SEED Instance Location",
         # "SEED-Bench-2_Part_5/": "Molmo 72B SEED Instance Count",
-        # "SEED-Bench-2_Part_6/": "Molmo 72B SEED Spatial Relation",
-        # "SEED-Bench-2_Part_7/": "Molmo 72B SEED Instance Interaction",
-        # "SEED-Bench-2_Part_8/": "Molmo 72B SEED Visual Reasoning",
-        "SEED-Bench-2_Part_9/molmo_72b_abcd_2024_10_12-08_49_30": "Molmo 72B SEED Text Understanding",
-        "SEED-Bench-2_Part_10/molmo_72b_abcd_2024_10_12-06_05_53": "Molmo 72B SEED Celebrity Recognition",
-        # "SEED-Bench-2_Part_11/": "Molmo 72B SEED Landmark Recognition",
-        # "SEED-Bench-2_Part_12/": "Molmo 72B SEED Chart Understanding",
-        "SEED-Bench-2_Part_13/molmo_72b_abcd_2024_10_12-02_48_43": "Molmo 72B SEED Visual Referring Expression",
-        "SEED-Bench-2_Part_14/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Science Knowledge",
-        "SEED-Bench-2_Part_15/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Emotion Recognition",
-        "SEED-Bench-2_Part_16/molmo_72b_abcd_2024_10_12-02_48_34": "Molmo 72B SEED Visual Mathematics",
+        # "SEED-Bench-2_Part_6/molmo_72b_abcd_2024_10_12-09_42_51": "Molmo 72B SEED Spatial Relation",
+        # "SEED-Bench-2_Part_7/molmo_72b_abcd_2024_10_12-15_04_10": "Molmo 72B SEED Instance Interaction",
+        # "SEED-Bench-2_Part_8/molmo_72b_abcd_2024_10_14-16_46_49": "Molmo 72B SEED Visual Reasoning",
+        # "SEED-Bench-2_Part_9/molmo_72b_abcd_2024_10_12-08_49_30": "Molmo 72B SEED Text Understanding",
+        # "SEED-Bench-2_Part_10/molmo_72b_abcd_2024_10_12-06_05_53": "Molmo 72B SEED Celebrity Recognition",
+        # "SEED-Bench-2_Part_11/molmo_72b_abcd_2024_10_12-05_11_16": "Molmo 72B SEED Landmark Recognition",
+        # "SEED-Bench-2_Part_12/molmo_72b_abcd_2024_10_12-02_48_43": "Molmo 72B SEED Chart Understanding",
+        # "SEED-Bench-2_Part_13/molmo_72b_abcd_2024_10_12-02_48_43": "Molmo 72B SEED Visual Referring Expression",
+        # "SEED-Bench-2_Part_14/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Science Knowledge",
+        # "SEED-Bench-2_Part_15/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Emotion Recognition",
+        # "SEED-Bench-2_Part_16/molmo_72b_abcd_2024_10_12-02_48_34": "Molmo 72B SEED Visual Mathematics",
+
+        # Pixtral
+
+        "Unlabeled_COCO/pixtral_3000_merged": "Pixtral COCO Captions",
+        "WhatsUp_A/pixtral_abcd_2024_10_13-18_14_52": "Pixtral WhatsUp A",
+        "WhatsUp_B/pixtral_abcd_2024_10_13-18_14_52": "Pixtral WhatsUp B",
+        "SEED-Bench-2_Part_1/pixtral_abcd_merged": "Pixtral SEED Scene Understanding",
+        "SEED-Bench-2_Part_2/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Instance Identity",
+        "SEED-Bench-2_Part_3/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Instance Attributes",
+        "SEED-Bench-2_Part_4/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Instance Location",
+        "SEED-Bench-2_Part_5/pixtral_abcd_2024_10_13-21_02_17": "Pixtral SEED Instance Count",
+        "SEED-Bench-2_Part_6/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Spatial Relation",
+        "SEED-Bench-2_Part_7/pixtral_abcd_2024_10_13-18_19_36": "Pixtral SEED Instance Interaction",
+        "SEED-Bench-2_Part_8/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Visual Reasoning",
+        "SEED-Bench-2_Part_9/pixtral_abcd_2024_10_13-21_02_05": "Pixtral SEED Text Understanding",
+        "SEED-Bench-2_Part_10/pixtral_abcd_2024_10_13-21_02_04": "Pixtral SEED Celebrity Recognition",
+        "SEED-Bench-2_Part_11/pixtral_abcd_2024_10_13-21_02_17": "Pixtral SEED Landmark Recognition",
+        "SEED-Bench-2_Part_12/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Chart Understanding",
+        "SEED-Bench-2_Part_13/pixtral_abcd_2024_10_13-18_18_43": "Pixtral SEED Visual Referring Expression",
+        "SEED-Bench-2_Part_14/pixtral_abcd_2024_10_13-18_18_43": "Pixtral SEED Science Knowledge",
+        "SEED-Bench-2_Part_15/pixtral_abcd_2024_10_13-18_18_43": "Pixtral SEED Emotion Recognition",
+        "SEED-Bench-2_Part_16/pixtral_abcd_2024_10_13-21_02_04": "Pixtral SEED Visual Mathematics",
     }
 
     colors = [
@@ -231,10 +261,12 @@ if __name__ == "__main__":
     llava_run_dirs = [run_dir for run_dir in dirs_to_name if dirs_to_name[run_dir].startswith("LLaVA 13B")]
     molmo_7b_run_dirs = [run_dir for run_dir in dirs_to_name if dirs_to_name[run_dir].startswith("Molmo 7B")]
     molmo_72b_run_dirs = [run_dir for run_dir in dirs_to_name if dirs_to_name[run_dir].startswith("Molmo 72B")]
+    pixtral_run_dirs = [run_dir for run_dir in dirs_to_name if dirs_to_name[run_dir].startswith("Pixtral")]
     llava_dir_names = [dirs_to_name[run_dir] for run_dir in llava_run_dirs]
     molmo_7b_dir_names = [dirs_to_name[run_dir] for run_dir in molmo_7b_run_dirs]
     molmo_72b_dir_names = [dirs_to_name[run_dir] for run_dir in molmo_72b_run_dirs]
-    fig = make_subplots(rows=3, cols=1)
+    pixtral_dir_names = [dirs_to_name[run_dir] for run_dir in pixtral_run_dirs]
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True)
     fig.add_trace(
         go.Bar(x=llava_dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in llava_run_dirs],
                name="Text Difference"), row=1, col=1)
@@ -253,15 +285,24 @@ if __name__ == "__main__":
     fig.add_trace(
         go.Bar(x=molmo_7b_dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in molmo_7b_run_dirs],
                name="Image Difference"), row=2, col=1)
+    # fig.add_trace(
+    #     go.Bar(x=molmo_72b_dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in molmo_72b_run_dirs],
+    #            name="Text Difference"), row=3, col=1)
+    # fig.add_trace(
+    #     go.Bar(x=molmo_72b_dir_names, y=[2 * np.nanmean(jaccard_index[run_dir]) for run_dir in molmo_72b_run_dirs],
+    #            name="Jaccard Index"), row=3, col=1)
+    # fig.add_trace(
+    #     go.Bar(x=molmo_72b_dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in molmo_72b_run_dirs],
+    #            name="Image Difference"), row=3, col=1)
     fig.add_trace(
-        go.Bar(x=molmo_72b_dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in molmo_72b_run_dirs],
-                name="Text Difference"), row=3, col=1)
+        go.Bar(x=pixtral_dir_names, y=[np.nanmean(txt_difference[run_dir]) for run_dir in pixtral_run_dirs],
+                name="Text Difference"), row=4, col=1)
     fig.add_trace(
-        go.Bar(x=molmo_72b_dir_names, y=[2 * np.nanmean(jaccard_index[run_dir]) for run_dir in molmo_72b_run_dirs],
-                name="Jaccard Index"), row=3, col=1)
+        go.Bar(x=pixtral_dir_names, y=[2 * np.nanmean(jaccard_index[run_dir]) for run_dir in pixtral_run_dirs],
+                name="Jaccard Index"), row=4, col=1)
     fig.add_trace(
-        go.Bar(x=molmo_72b_dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in molmo_72b_run_dirs],
-                name="Image Difference"), row=3, col=1)
+        go.Bar(x=pixtral_dir_names, y=[np.nanmean(img_difference[run_dir]) for run_dir in pixtral_run_dirs],
+                name="Image Difference"), row=4, col=1)
     fig.update_layout(barmode="stack")
     st.plotly_chart(fig)
 

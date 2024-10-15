@@ -1,6 +1,6 @@
 defaults:
     - _self_
-    - task: coco
+    - task: mmvp
     - model: pixtral
     - sampling_params: short
 
@@ -16,7 +16,7 @@ num_workers: 6
 pin_memory: true
 batch_size: 1
 
-need_grad: false
+need_grad: falsebjobs -w
 
 mixed_precision: false
 use_tf32: false

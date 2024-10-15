@@ -107,7 +107,7 @@ def apply_threshold_and_renormalize(
     )
 
 
-@torch.compile
+@torch.compile()  
 def pairwise_distances(v, pattern, o_weight, whole, p):
     decomposed_attn = torch.einsum("khd,hqk,hdm->qkhm", v, pattern, o_weight)
     rearranged = einops.rearrange(

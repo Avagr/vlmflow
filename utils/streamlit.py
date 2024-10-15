@@ -8,7 +8,7 @@ import streamlit as st
 
 from transformers import AutoProcessor
 
-from models.transparent_models import TransparentLlava, TransparentMolmo
+from models.transparent_models import TransparentLlava, TransparentMolmo, TransparentPixtral
 
 # An array of simple and distinct colors (names) for the nodes
 
@@ -117,6 +117,8 @@ def tokens_to_strings(token_ids, model_name, _processor):
             return TransparentLlava.tokens_to_strings(token_ids, _processor.tokenizer)
         case "molmo":
             return TransparentMolmo.tokens_to_strings(token_ids, _processor.tokenizer)
+        case "pixtral":
+            return TransparentPixtral.tokens_to_strings(token_ids, _processor.tokenizer)
         case _:
             raise ValueError(f"Unsupported model '{model_name}'")
 

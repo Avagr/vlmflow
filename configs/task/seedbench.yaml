@@ -4,3 +4,5 @@ json_path: /home/projects/shimon/Collaboration/seedbench/SEED-Bench_v2_level1_2_
 image_root: /home/projects/shimon/Collaboration/seedbench/SEED-Bench-2-image
 eval_method: abcd
 display_name: "${task.name}_Part_${task.task_num}"
+dataset_from: 0   # 0-indexed
+dataset_to: 10000   # non-inclusive

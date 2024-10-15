@@ -3,25 +3,24 @@ from pathlib import Path
 
 from graph_tool import Graph  # noqa
 import hydra
-import wandb
-import torch
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
+import torch
 from torch.utils.data import DataLoader
+import wandb
 
 from utils.eval import eval_model, merge_results
 from utils.misc import set_random_seed, count_parameters, timestamp
 from utils.setup import create_model, create_eval_task, create_callbacks
-from torch.backends import opt_einsum
 
 
 @hydra.main(config_path="configs", config_name="eval_config", version_base=None)
 def run(cfg: DictConfig):
-
     torch.autograd.set_detect_anomaly(cfg.detect_anomalies, check_nan=True)
     torch.backends.cuda.matmul.allow_tf32 = cfg.use_tf32
     torch.backends.cudnn.allow_tf32 = cfg.use_tf32
-    torch._dynamo.config.cache_size_limit = 128
+    torch._dynamo.config.cache_size_limit = 512
+    torch._dynamo.config.accumulated_cache_size_limit = 512
 
     set_random_seed(cfg.seed)
 
@@ -32,7 +31,6 @@ def run(cfg: DictConfig):
     if cfg.disable_wandb:
         os.environ["WANDB_MODE"] = "disabled"
 
-
     if cfg.resume_wandb_id is None:
         run_id = wandb.util.generate_id()
     else:
@@ -42,8 +40,8 @@ def run(cfg: DictConfig):
 
     choices = HydraConfig.get().runtime.choices
     root_dir = Path(__file__).parent.resolve()
-    prompt_path = root_dir.joinpath(root_dir, "configs", "prompts",
-                                    f"{choices['model']}", f"{choices['task']}_{cfg.task.eval_method}.yaml")
+    prompt_path = root_dir.joinpath(root_dir, "configs", "prompts", f"{choices['model']}",
+                                    f"{choices['task']}_{cfg.task.eval_method}.yaml")
     cfg.prompt = OmegaConf.load(prompt_path)
 
     print("Prompt:\n" + cfg.prompt.text)
@@ -64,8 +62,6 @@ def run(cfg: DictConfig):
                         pin_memory=cfg.pin_memory, collate_fn=collate_fn)
 
     callbacks = create_callbacks(cfg, wrapper, run_folder, model)
-
-
 
     with torch.inference_mode(mode=not cfg.need_grad):
         accuracy, results = eval_model(model, wrapper, loader, cfg.show_tqdm)

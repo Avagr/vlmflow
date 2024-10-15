@@ -25,6 +25,7 @@ if __name__ == "__main__":
 
 
     dirs_to_name = {
+        "Unlabeled_COCO/pixtral_3000_merged": "Pixtral COCO Captions",
         # "Unlabeled_COCO/llava_3000_copy": "COCO LLaVA 13B Low Threshold",
         # "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
         # "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "LLaVA 13B COCO Captions",
@@ -51,7 +52,7 @@ if __name__ == "__main__":
         # "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57": "COCO Captions Reverse",
         # "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
         # "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "Molmo 7B COCO Captions",
-        "WhatsUp_A/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp A",
+        # "WhatsUp_A/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp A",
         # "WhatsUp_B/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp B",
         # "SEED-Bench-2_Part_1/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Scene Understanding",
         # "SEED-Bench-2_Part_2/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Instance Identity",
@@ -70,7 +71,7 @@ if __name__ == "__main__":
         # "SEED-Bench-2_Part_15/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Emotion Recognition",
         # "SEED-Bench-2_Part_16/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Visual Mathematics",
         # "WhatsUp_B/molmo_72b_abcd_2024_10_12-02_38_50": "Molmo 72B WhatsUp B",
-        "WhatsUp_A/molmo_fusion_test_2024_10_13-02_19_22": "Molmo 7B Fused WhatsUp A",
+        # "WhatsUp_A/molmo_fusion_test_2024_10_13-02_19_22": "Molmo 7B Fused WhatsUp A",
     }
 
     margins_css = """
@@ -99,6 +100,9 @@ if __name__ == "__main__":
     elif 'molmo' in run_dir:
         model_name = 'molmo'
         processor = load_processor("allenai/Molmo-72B-0924")
+    elif "pixtral" in run_dir:
+        model_name = 'pixtral'
+        processor = load_processor("mistral-community/pixtral-12b")
     else:
         raise ValueError(f"Unsupported model made '{run_dir}'")
     print("Loaded processor")
@@ -115,7 +119,8 @@ if __name__ == "__main__":
         table_index = st.number_input("Table index", value=0, min_value=0, max_value=len(table) - 1)
         table_row = table.iloc[table_index]
         st.write(processor.tokenizer.decode(table_row.generated_ids, skip_special_tokens=True))
-        st.write("\nCorrect Answer:", table_row.answer)
+        if 'answer' in table_row:
+            st.write("\nCorrect Answer:", table_row.answer)
         # Show the image
         img_path = f"{image_dir}/{table_row.image}"
         st.image(Image.open(img_path), caption=table_row.image, use_column_width=True)
