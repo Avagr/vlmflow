@@ -5,4 +5,5 @@ json_path_B: /home/projects/shimon/agroskin/datasets/whatsup/controlled_clevr_da
 image_root: /home/projects/shimon/agroskin/datasets/whatsup
 eval_method: abcd
 permute: true
+type: allperm
 display_name: "${task.name}_${task.part}"

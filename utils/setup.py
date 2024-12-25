@@ -5,11 +5,10 @@ from transformers import LlavaForConditionalGeneration, AutoProcessor, Generatio
 
 from datasets.base import EvalWrapper
 from datasets.coco import UnlabeledCoco, UnlabeledCocoCollate, UnlabeledCocoEval
-from datasets.gqa import GQA, GQAEval, GQACollate
 from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
 from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
-from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate
-from flow.analysis import *
+from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate, GroupedWhatsUp, AllPermutationsWhatsUp
+from flow.metrics import *
 from models.molmo.modeling_molmo import MolmoForCausalLM
 from models.molmo.preprocessing_molmo import MolmoProcessor
 from models.transparent_models import TransparentLlava, TransparentMolmo, TransparentPixtral
@@ -70,7 +69,7 @@ def create_model(cfg):
         case _:
             raise ValueError(f"Unsupported model '{cfg.model.name}'")
 
-    return model
+    return model 
 
 
 def create_eval_task(cfg):
@@ -88,8 +87,18 @@ def create_eval_task(cfg):
             elif cfg.task.part == 'B':
                 json_path = Path(cfg.task.json_path_B)
             else:
-                raise ValueError(f"Unsupported What's Up part '{cfg.task.part}'")
-            dataset = WhatsUp(Path(cfg.task.image_root), json_path, permute_options=cfg.task.permute)
+                raise ValueError(f"Unsupported WhatsUp part '{cfg.task.part}'")
+
+            match cfg.task.type:
+                case "grouped":
+                    dataset = GroupedWhatsUp(Path(cfg.task.image_root), json_path)
+                case "default":
+                    dataset = WhatsUp(Path(cfg.task.image_root), json_path, permute_options=cfg.task.permute)
+                case "allperm":
+                    dataset = AllPermutationsWhatsUp(Path(cfg.task.image_root), json_path)
+                case _:
+                    raise ValueError(f"Unsupported WhatsUp type '{cfg.task.type}'")
+
             collate = WhatsUpCollate()
             wrapper = WhatsUpEval(cfg.prompt.text, cfg.task.eval_method, sampling_config)
 

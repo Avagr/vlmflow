@@ -25,9 +25,8 @@ if __name__ == "__main__":
 
 
     dirs_to_name = {
-        "Unlabeled_COCO/pixtral_3000_merged": "Pixtral COCO Captions",
-        # "Unlabeled_COCO/llava_3000_copy": "COCO LLaVA 13B Low Threshold",
-        # "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
+        # LLaVA 13B
+
         # "Unlabeled_COCO/llava_3000_2024_09_26-02_13_31": "LLaVA 13B COCO Captions",
         # "WhatsUp_A/llava_base_2024_09_14-22_49_27": "LLaVA 13B WhatsUp A",
         # "WhatsUp_B/llava_base_2024_09_14-22_49_28": "LLaVA 13B WhatsUp B",
@@ -47,13 +46,20 @@ if __name__ == "__main__":
         # "SEED-Bench-2_Part_14/llava_base_2024_09_14-22_52_14": "LLaVA 13B SEED Science Knowledge",
         # "SEED-Bench-2_Part_15/llava_base_2024_09_14-22_52_15": "LLaVA 13B SEED Emotion Recognition",
         # "SEED-Bench-2_Part_16/llava_base_2024_09_14-22_52_21": "LLaVA 13B SEED Visual Mathematics",
+        # "MMVP/llava_abcd_2024_10_16-02_23_57": "LLaVA 13B MMVP",
+
         # "Unlabeled_COCO/llava_2000_2024_09_15-01_57_15": "COCO Captions",
         # "WhatsUp_A/llava_gen_2024_09_22-23_12_59": "WhatsUp A Gen",
         # "Unlabeled_COCO/llava_2000_reverse_2024_09_14-22_41_57": "COCO Captions Reverse",
         # "WhatsUp_B/llava_gen_2024_09_22-23_12_59": "WhatsUp B Gen",
-        # "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "Molmo 7B COCO Captions",
-        # "WhatsUp_A/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp A",
-        # "WhatsUp_B/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp B",
+
+        # MOLMO 7B
+
+        "Unlabeled_COCO/molmo_3000_2024_09_29-04_08_54": "Molmo 7B COCO Captions",
+        # "Unlabeled_COCO/molmo_uninit_2024_12_18-00_14_19": "Molmo 7B Uninitialized",
+        "WhatsUp_A/molmo_grouped_2024_12_19-18_23_55": "Molmo 7B WhatsUp A Grouped",
+        "WhatsUp_A/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp A",
+        "WhatsUp_B/molmo_fixed_abcd_2024_10_10-17_44_42": "Molmo 7B WhatsUp B",
         # "SEED-Bench-2_Part_1/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Scene Understanding",
         # "SEED-Bench-2_Part_2/molmo_fixed_abcd_2024_10_10-17_45_57": "Molmo 7B SEED Instance Identity",
         # "SEED-Bench-2_Part_3/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Instance Attributes",
@@ -70,8 +76,53 @@ if __name__ == "__main__":
         # "SEED-Bench-2_Part_14/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Science Knowledge",
         # "SEED-Bench-2_Part_15/molmo_fixed_abcd_2024_10_10-17_45_59": "Molmo 7B SEED Emotion Recognition",
         # "SEED-Bench-2_Part_16/molmo_fixed_abcd_2024_10_10-17_45_58": "Molmo 7B SEED Visual Mathematics",
+        # "MMVP/molmo_abcd_2024_10_16-02_20_52": "Molmo 7B MMVP",
+
+        # MOLMO 72B
+
+        # "Unlabeled_COCO/molmo_72b_merged_600": "Molmo 72B",
+        # "WhatsUp_A/molmo_72b_abcd_2024_10_12-15_27_10": "Molmo 72B WhatsUp A",
         # "WhatsUp_B/molmo_72b_abcd_2024_10_12-02_38_50": "Molmo 72B WhatsUp B",
-        # "WhatsUp_A/molmo_fusion_test_2024_10_13-02_19_22": "Molmo 7B Fused WhatsUp A",
+        # "SEED-Bench-2_Part_1/molmo_72b_abcd_merged": "Molmo 72B SEED Scene Understanding",
+        # "SEED-Bench-2_Part_2/molmo_72b_abcd_merged": "Molmo 72B SEED Instance Identity",
+        # "SEED-Bench-2_Part_3/molmo_72b_abcd_merged": "Molmo 72B SEED Instance Attributes",
+        # "SEED-Bench-2_Part_4/molmo_72b_abcd_merged": "Molmo 72B SEED Instance Location",
+        # "SEED-Bench-2_Part_5/molmo_72b_abcd_merged": "Molmo 72B SEED Instance Count",
+        # "SEED-Bench-2_Part_6/molmo_72b_abcd_2024_10_12-09_42_51": "Molmo 72B SEED Spatial Relation",
+        # "SEED-Bench-2_Part_7/molmo_72b_abcd_2024_10_12-15_04_10": "Molmo 72B SEED Instance Interaction",
+        # "SEED-Bench-2_Part_8/molmo_72b_abcd_2024_10_14-16_46_49": "Molmo 72B SEED Visual Reasoning",
+        # "SEED-Bench-2_Part_9/molmo_72b_abcd_2024_10_12-08_49_30": "Molmo 72B SEED Text Understanding",
+        # "SEED-Bench-2_Part_10/molmo_72b_abcd_2024_10_12-06_05_53": "Molmo 72B SEED Celebrity Recognition",
+        # "SEED-Bench-2_Part_11/molmo_72b_abcd_2024_10_12-05_11_16": "Molmo 72B SEED Landmark Recognition",
+        # "SEED-Bench-2_Part_12/molmo_72b_abcd_2024_10_12-02_48_43": "Molmo 72B SEED Chart Understanding",
+        # "SEED-Bench-2_Part_13/molmo_72b_abcd_2024_10_12-02_48_43": "Molmo 72B SEED Visual Referring Expression",
+        # "SEED-Bench-2_Part_14/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Science Knowledge",
+        # "SEED-Bench-2_Part_15/molmo_72b_abcd_2024_10_12-02_48_36": "Molmo 72B SEED Emotion Recognition",
+        # "SEED-Bench-2_Part_16/molmo_72b_abcd_2024_10_12-02_48_34": "Molmo 72B SEED Visual Mathematics",
+        # "MMVP/molmo_72b_abcd_2024_10_16-02_20_19": "Molmo 72B MMVP",
+
+        # Pixtral
+
+        # "Unlabeled_COCO/pixtral_3000_merged": "Pixtral COCO Captions",
+        # "WhatsUp_A/pixtral_abcd_2024_10_13-18_14_52": "Pixtral WhatsUp A",
+        # "WhatsUp_B/pixtral_abcd_2024_10_13-18_14_52": "Pixtral WhatsUp B",
+        # "SEED-Bench-2_Part_1/pixtral_abcd_merged": "Pixtral SEED Scene Understanding",
+        # "SEED-Bench-2_Part_2/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Instance Identity",
+        # "SEED-Bench-2_Part_3/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Instance Attributes",
+        # "SEED-Bench-2_Part_4/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Instance Location",
+        # "SEED-Bench-2_Part_5/pixtral_abcd_2024_10_13-21_02_17": "Pixtral SEED Instance Count",
+        # "SEED-Bench-2_Part_6/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Spatial Relation",
+        # "SEED-Bench-2_Part_7/pixtral_abcd_2024_10_13-18_19_36": "Pixtral SEED Instance Interaction",
+        # "SEED-Bench-2_Part_8/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Visual Reasoning",
+        # "SEED-Bench-2_Part_9/pixtral_abcd_2024_10_13-21_02_05": "Pixtral SEED Text Understanding",
+        # "SEED-Bench-2_Part_10/pixtral_abcd_2024_10_13-21_02_04": "Pixtral SEED Celebrity Recognition",
+        # "SEED-Bench-2_Part_11/pixtral_abcd_2024_10_13-21_02_17": "Pixtral SEED Landmark Recognition",
+        # "SEED-Bench-2_Part_12/pixtral_abcd_2024_10_13-21_02_06": "Pixtral SEED Chart Understanding",
+        # "SEED-Bench-2_Part_13/pixtral_abcd_2024_10_13-18_18_43": "Pixtral SEED Visual Referring Expression",
+        # "SEED-Bench-2_Part_14/pixtral_abcd_2024_10_13-18_18_43": "Pixtral SEED Science Knowledge",
+        # "SEED-Bench-2_Part_15/pixtral_abcd_2024_10_13-18_18_43": "Pixtral SEED Emotion Recognition",
+        # "SEED-Bench-2_Part_16/pixtral_abcd_2024_10_13-21_02_04": "Pixtral SEED Visual Mathematics",
+        # "MMVP/pixtral_abcd_2024_10_16-02_24_14": "Pixtral MMVP",
     }
 
     margins_css = """
@@ -120,10 +171,13 @@ if __name__ == "__main__":
         table_row = table.iloc[table_index]
         st.write(processor.tokenizer.decode(table_row.generated_ids, skip_special_tokens=True))
         if 'answer' in table_row:
-            st.write("\nCorrect Answer:", table_row.answer)
+            st.write("\nCORRECT:", table_row.answer)
         # Show the image
-        img_path = f"{image_dir}/{table_row.image}"
-        st.image(Image.open(img_path), caption=table_row.image, use_column_width=True)
+        if "home" not in table_row.image:
+            img_path = f"{image_dir}/{table_row.image}"
+        else:
+            img_path = table_row.image
+        st.image(Image.open(img_path), caption=table_row.image, use_container_width=True)
 
 
     simple_graphs, full_graphs = read_graphs(f"{base_dir}/{run_dir}", table_index, len(node_layers[table_index]))
@@ -164,7 +218,7 @@ if __name__ == "__main__":
         match st.selectbox("Visualize metric",
                            ["Nothing", "Modality Ratio", "Local Clustering", "Text Centrality", "Image Centrality",
                             "Centrality Sum", "Centrality Intersection", "Text Centrality Difference",
-                            "Image Centrality Difference", "SBM Clustering", "Nested SBM Clustering"], index=1):
+                            "Image Centrality Difference", "SBM Clustering", "K-core decomposition", "Nested SBM Clustering"], index=1):
             case "Modality Ratio":
                 node_style_map = create_node_style_map(simple_graphs,
                                                        [g.vp.img_contrib.a for g in simple_graphs], "value")
@@ -182,6 +236,10 @@ if __name__ == "__main__":
                 node_style_map = create_node_style_map(simple_graphs, txt_difference[table_index], "value")
             case "Image Centrality Difference":
                 node_style_map = create_node_style_map(simple_graphs, img_difference[table_index], "value")
+            case "K-core decomposition":
+                # print(simple_graphs)
+                kcore = get_kcore(simple_graphs)
+                node_style_map = create_node_style_map(simple_graphs, kcore, "value")
             case "SBM Clustering":
                 clustering = min_block(simple_graphs)
                 node_style_map = create_node_style_map(simple_graphs, clustering, "cluster")

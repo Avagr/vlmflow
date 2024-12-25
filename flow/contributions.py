@@ -47,8 +47,8 @@ def get_contributions(
     whole_norm = torch.norm(whole, p=distance_norm, dim=-1)
     distance = (whole_norm - distance).clip(min=EPS)
 
-    sum = distance.sum(dim=tuple(range(k)), keepdim=True)
-    return distance / sum
+    distance_sum = distance.sum(dim=tuple(range(k)), keepdim=True)
+    return distance / distance_sum
 
 
 @torch.no_grad()

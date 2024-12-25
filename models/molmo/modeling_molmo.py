@@ -498,6 +498,7 @@ class MolmoSequentialBlock(MolmoBlock):
                 atten_in = self.attn_norm(x)
         else:
             atten_in = x
+
         qkv = self.att_proj(atten_in)
 
         if self.config.clip_qkv is not None:
@@ -1024,8 +1025,8 @@ class MultiHeadDotProductAttention(nn.Module):
         if self.config.attention_type == "direct":
             attn_weights = torch.einsum("...qhd,...khd->...hqk", xq / math.sqrt(xq.size(-1)), xk)
             attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(xq.dtype)
-            print(attn_weights)
-            print(attn_weights.shape)
+            # print(attn_weights)
+            # print(attn_weights.shape)
             if self.attention_dropout is not None:
                 attn_weights = self.attention_dropout(attn_weights)
             attn_output = torch.einsum("...hqk,...khd->...qhd", attn_weights.to(xv.dtype), xv)
@@ -1604,6 +1605,8 @@ class LayerNormBase(nn.Module):
         self.config = config
         self.eps = self.config.layer_norm_eps or eps
         self.normalized_shape = (size or config.d_model,)
+        self.weight_initializer = weight_initializer
+        self.bias_initializer = bias_initializer
         if elementwise_affine or (elementwise_affine is None and self.config.layer_norm_with_affine):
             self.weight = nn.Parameter(weight_initializer(self.normalized_shape, device=config.init_device))
             use_bias = self.config.bias_for_layer_norm
@@ -1616,6 +1619,12 @@ class LayerNormBase(nn.Module):
         else:
             self.register_parameter("bias", None)
             self.register_parameter("weight", None)
+
+    def reset_parameters(self):
+        if self.weight is not None:
+            self.weight = nn.Parameter(self.weight_initializer(self.normalized_shape, device=self.weight.device, dtype=self.weight.dtype))
+        if self.bias is not None:
+            self.bias = nn.Parameter(self.bias_initializer(self.normalized_shape, device=self.bias.device, dtype=self.bias.dtype))
 
     @classmethod
     def build(cls, config: FullMolmoConfig, size: Optional[int] = None, **kwargs):
@@ -1778,7 +1787,7 @@ class Molmo(nn.Module):
         self.transformer.ln_f.reset_parameters()  # type: ignore
 
         if hasattr(self.transformer, "ff_out"):
-            nn.init.normal_(self.transformer.ff_out, mean=0.0, std=0.02)
+            nn.init.normal_(self.transformer.ff_out.weight, mean=0.0, std=0.02)
 
         if self.config.block_group_size == 1:
             for block in self.transformer.blocks:
@@ -1964,7 +1973,6 @@ class Molmo(nn.Module):
         # decoder layers
         all_hidden_states = []
         all_attentions = []
-
         # Apply blocks one-by-one.
         if self.config.block_group_size == 1:
             for block_idx, block in enumerate(self.transformer.blocks):

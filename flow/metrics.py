@@ -156,9 +156,18 @@ class CrossModalEdges(BaseGraphMetric):
     def __call__(graph: Graph) -> list[Number]:
         if graph.num_edges() == 0:
             return [0]
-        source_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='source').a
-        target_mod = edge_endpoint_property(graph, graph.vp.img_contrib, endpoint='target').a
-        return [((source_mod >= 1 - EPS) & (target_mod < 1 - EPS)).sum().item() / graph.num_edges()]
+        vs = graph.get_vertices(vprops=[graph.vp.token_num, graph.vp.layer_num])
+        is_token_image = {}
+        token_vs = vs[vs[:, 2] == 0]
+        for tok in token_vs:
+            is_token_image[tok[1]] = graph.vp.modality[tok[0]] == 'img'
+        vertex_modalities = graph.new_vertex_property("int", val=0)
+        for i, tok_num in graph.iter_vertices(vprops=[graph.vp.token_num]):
+            if tok_num in is_token_image and is_token_image[tok_num]:
+                vertex_modalities[i] = 1
+        source_mod = edge_endpoint_property(graph, vertex_modalities, endpoint='source').a
+        target_mod = edge_endpoint_property(graph, vertex_modalities, endpoint='target').a
+        return [((source_mod == 1) & (target_mod == 0)).sum().item() / graph.num_edges()]
 
 
 # class NumCrossModalEdgesCentrality(BaseGraphMetric):

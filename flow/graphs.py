@@ -1,4 +1,3 @@
-from contourpy.util.data import simple
 from graph_tool import Graph
 import torch
 

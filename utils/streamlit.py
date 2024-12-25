@@ -2,6 +2,7 @@ import pickle
 from typing import Literal
 
 from graph_tool import Graph, PropertyMap, load_graph  # noqa
+from graph_tool.topology import kcore_decomposition  # noqa
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -137,6 +138,15 @@ def get_edge_list(graph: Graph):
             res.append({"source": f"{source_id_beg}_{source_id_end}",
                         "target": f"{target_id_beg[0]}{int(target_id_beg[1:]) - 1}_{target_id_end}",
                         "weight": w.item()})
+    return res
+
+
+@st.cache_resource(hash_funcs={list[Graph]: id})
+def get_kcore(graphs: list[Graph]):
+    res = []
+    for graph in graphs:
+        res.append(kcore_decomposition(graph).a)
+        res[-1] = res[-1] / res[-1].max()
     return res
 
 

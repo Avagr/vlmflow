@@ -82,9 +82,7 @@ def run(cfg: DictConfig):
             for idx in tqdm(results_table.idx, desc="Loading graphs"):
                 simple_graphs, node_layers = [], []
                 for i in range(len(node_layers_dict[idx])):
-                    simple_graphs.append(load_graph(str(base_dir / "simple_graphs" / f"{idx}_{i}.gt"),
-                                                    ignore_vp=["txt_contrib", "img_contrib", "txt_centrality",
-                                                               "img_centrality", "local_clustering"]))
+                    simple_graphs.append(load_graph(str(base_dir / "simple_graphs" / f"{idx}_{i}.gt")))
 
                 simple_graph_dict[idx] = simple_graphs
 

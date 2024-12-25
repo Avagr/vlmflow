@@ -1,4 +1,7 @@
+from collections import defaultdict
+from itertools import permutations
 import json
+import os
 from pathlib import Path
 import re
 
@@ -53,6 +56,126 @@ class WhatsUp(BaseDataset):
             wandb.Image(str((self.root_dir / item['image_path']).resolve())) if img_as_object else item['image_path'],
             item['caption_options'][prediction] if prediction != -1 else "N/A",
             item['caption_options'][0],
+        ]
+
+
+class GroupedWhatsUp(BaseDataset):
+    table_columns = ["idx", "image", "prediction", "answer", 'group']
+
+    def __init__(self, root_dir: Path, json_path: Path, no_image_sample=True):
+        self.root_dir = root_dir
+
+        if "clevr" in json_path.name:
+            pattern = re.compile(r"^(.*?)_(right_of|left_of|in-front_of|behind)_(.*?)\.jpeg$")
+            img_dir_path = root_dir / "data" / "controlled_clevr"
+        else:
+            pattern = re.compile(r"^(.*?)_(right_of|left_of|under|on)_(.*?)\.jpeg$")
+            img_dir_path = root_dir / "data" / "controlled_images"
+
+        groups = defaultdict(list)
+
+        for filename in os.listdir(img_dir_path):
+            match = pattern.match(filename)
+            if not match or len(match.groups()) != 3:
+                continue
+            x, _, y = match.groups()
+            key = f"{x}_{y}"
+            groups[key].append(filename)
+
+        with open(json_path, 'r') as f:
+            self.items = json.load(f)
+
+        self.grouped_samples = []
+        for group_key, group_files in groups.items(): # Inefficient, but runs once
+            for item in self.items:
+                if item['image_path'].split("/")[-1] in group_files:
+                    permutation = torch.randperm(4)
+                    options = [item['caption_options'][i] for i in permutation]
+                    answer = permutation.argmin().item()
+                    for file in group_files:
+                        self.grouped_samples.append((img_dir_path / file, options, answer, group_key))
+                    break
+
+    def __len__(self):
+        return len(self.grouped_samples)
+
+    def __getitem__(self, idx):
+        image_path, options, answer, _ = self.grouped_samples[idx]
+        image = Image.open(image_path).convert('RGB')
+        return idx, image, options, answer
+
+    def table_repr(self, idx, prediction, img_as_object=True):
+        image_path, options, answer, group = self.grouped_samples[idx]
+        return [
+            idx,
+            wandb.Image(str(image_path.resolve())) if img_as_object else str(image_path.resolve()),
+            options[prediction] if prediction != -1 else "N/A",
+            options[0],
+            group,
+        ]
+
+
+class AllPermutationsWhatsUp(BaseDataset):
+    table_columns = ["idx", "image", "prediction", "answer", 'group']
+
+    def __init__(self, root_dir: Path, json_path: Path):
+        self.all_permutations = list(map(torch.tensor, permutations(range(4))))
+        self.root_dir = root_dir
+
+        if "clevr" in json_path.name:
+            pattern = re.compile(r"^(.*?)_(right_of|left_of|in-front_of|behind)_(.*?)\.jpeg$")
+            img_dir_path = root_dir / "data" / "controlled_clevr"
+        else:
+            pattern = re.compile(r"^(.*?)_(right_of|left_of|under|on)_(.*?)\.jpeg$")
+            img_dir_path = root_dir / "data" / "controlled_images"
+
+        groups = defaultdict(list)
+
+        for filename in os.listdir(img_dir_path):
+            match = pattern.match(filename)
+            if not match or len(match.groups()) != 3:
+                continue
+            x, _, y = match.groups()
+            key = f"{x}_{y}"
+            groups[key].append(filename)
+
+        with open(json_path, 'r') as f:
+            self.items = json.load(f)
+
+        self.grouped_samples = []
+        for group_key, group_files in groups.items(): # Inefficient, but runs once
+            for item in self.items:
+                if item['image_path'].split("/")[-1] in group_files:
+                    permutation = torch.randperm(4)
+                    options = [item['caption_options'][i] for i in permutation]
+                    answer = permutation.argmin().item()
+                    for file in group_files:
+                        self.grouped_samples.append((img_dir_path / file, options, answer, group_key))
+                    break
+
+
+    def __len__(self):
+        return len(self.grouped_samples) * len(self.all_permutations)
+
+    def __getitem__(self, idx):
+        group_idx, permutation_idx = divmod(idx, len(self.all_permutations))
+        image_path, options, answer, _ = self.grouped_samples[group_idx]
+        permuted_options = [options[i] for i in self.all_permutations[permutation_idx]]
+        answer = self.all_permutations[permutation_idx].argmin().item()
+        image = Image.open(image_path).convert('RGB')
+        return idx, image, permuted_options, answer
+
+    def table_repr(self, idx, prediction, img_as_object=True):
+        group_idx, permutation_idx = divmod(idx, len(self.all_permutations))
+        image_path, options, answer, group = self.grouped_samples[group_idx]
+        permuted_options = [options[i] for i in self.all_permutations[permutation_idx]]
+        answer = self.all_permutations[permutation_idx].argmin().item()
+        return [
+            idx,
+            wandb.Image(str(image_path.resolve())) if img_as_object else str(image_path.resolve()),
+            permuted_options[prediction] if prediction != -1 else "N/A",
+            answer,
+            group,
         ]
 
 
