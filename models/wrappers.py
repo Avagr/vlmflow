@@ -1,3 +1,4 @@
+from PIL.Image import Image
 import torch
 from torch import nn
 from transformers import GenerationConfig
@@ -25,7 +26,7 @@ class GenerativeWrapper(nn.Module):
         self.output_attentions = output_attentions
         self.vqa_candidates = vqa_candidates
 
-    def generate(self, images: list[torch.Tensor], texts: list[str], config: GenerationConfig) -> (
+    def generate(self, images: list[torch.Tensor | Image], texts: list[str], config: GenerationConfig) -> (
             list[str], list[list[int]], list[int]):
         inputs = self.processor(text=texts, images=images, return_tensors='pt', padding=False).to(device=self.device,
                                                                                                  dtype=self.dtype)

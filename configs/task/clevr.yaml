@@ -1,0 +1,7 @@
+name: "CLEVR"
+question_family_index: null
+fold: val
+json_path: "/home/projects/shimon/agroskin/datasets/clevr/questions/CLEVR_${task.fold}_questions.json"
+img_dir: "/home/projects/shimon/agroskin/datasets/clevr/images/${task.fold}"
+eval_method: next_token
+display_name: "${task.name}_${task.fold}"

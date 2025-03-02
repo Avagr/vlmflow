@@ -51,6 +51,7 @@ def contribution_graph(
     graphs_edge_lists,
     key: str,
     node_style_map: Optional[list[list]] = None,
+
 ) -> Optional[int]:
     """Create a new instance of contribution graph.
 
@@ -58,7 +59,7 @@ def contribution_graph(
     """
 
     if node_style_map is None:
-        node_style_map = [["I am a", "dummy map"] for _ in range(graphs_edge_lists)]
+        node_style_map = [["I am a", "dummy map"] for _ in graphs_edge_lists]
 
     # assert len(tokens) == len(graphs_edge_lists) + 1
 

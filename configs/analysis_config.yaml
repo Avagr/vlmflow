@@ -12,7 +12,6 @@ max_workers: 16
 
 results_dir: /home/projects/shimon/agroskin/projects/vlmflow/results
 run_dir: WhatsUp_A/molmo_grouped_2024_12_19-18_23_55
-#run_dir: Unlabeled_COCO/llava_test_2024_09_16-00_10_20
 
 construct_graphs: true
 graph_threshold: 0.01  
@@ -21,6 +20,7 @@ graph_threshold: 0.01
 modality_contribution: true
 modality_centrality: true
 local_clustering_coefficient: true
+closeness_centrality: true
 
 # Graph metrics
 graph_density: true

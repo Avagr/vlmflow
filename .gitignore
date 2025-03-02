@@ -1,3 +1,7 @@
 *.ipynb
 /launch_script.py
 *.pkl
+run_parallel_*.py
+**/__pycache__/
+**/*.pyc
+**/*.pyo

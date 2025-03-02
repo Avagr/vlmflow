@@ -17,7 +17,7 @@ from utils.eval import EvaluationResult
 class WhatsUp(BaseDataset):
     table_columns = ["idx", "image", "prediction", "answer"]
 
-    def __init__(self, root_dir: Path, json_path: Path, permute_options: bool = False):
+    def __init__(self, root_dir: Path, json_path: Path, permute_options: bool = True):
         self.root_dir = root_dir
         self.permute_options = permute_options
         with open(json_path, 'r') as f:

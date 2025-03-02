@@ -13,6 +13,10 @@ def build_graph_from_contributions(
 
     full_graph.gp.num_layers = full_graph.new_gp("int", val=num_layers)
     simple_graph.gp.num_layers = simple_graph.new_gp("int", val=num_layers)
+    full_graph.gp.img_begin = full_graph.new_gp("int", val=img_begin)
+    simple_graph.gp.img_begin = simple_graph.new_gp("int", val=img_begin)
+    full_graph.gp.img_end = full_graph.new_gp("int", val=img_end)
+    simple_graph.gp.img_end = simple_graph.new_gp("int", val=img_end)
 
     # MAYBE also add modality to the full_graph
     simple_graph.vp.modality = simple_graph.new_vertex_property("string", val='mixed')
@@ -45,7 +49,7 @@ def build_thresholded_graph(
     simplified_edge_list = []
     num_layers = len(attn_contribs)
     num_tokens = attn_contribs[0].size(0)
-    # 0-based indexing for layers, but we use 1-based indexing in node names, with 0 being the initial tokens
+    # 0-based indexing for layers, but we use 1-based indexing in node names, with 0 being the initial input tokens
     if top_token_num < 0:
         top_token_num = num_tokens + top_token_num
     stack = [(top_token_num, num_layers - 1)]

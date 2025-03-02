@@ -1,9 +1,10 @@
 from abc import abstractmethod, ABC
 from numbers import Number
 
-from graph_tool import Graph, edge_endpoint_property
+from graph_tool import Graph, edge_endpoint_property, GraphView
 from graph_tool.search import dfs_iterator
 from graph_tool.spectral import adjacency
+from graph_tool.topology import shortest_distance
 import numpy as np
 
 EPS = 1e-5
@@ -100,6 +101,40 @@ class LocalClusteringCoefficient(BaseVertexMetric):
         return graph, [graph.vp.local_clustering.a]
 
 
+class ClosenessCentrality(BaseVertexMetric):
+    name = "closeness_centrality"
+    labels = ["closeness_centrality", "img_closeness"]
+
+    @staticmethod
+    def __call__(graph: Graph, _) -> tuple[Graph, list[np.ndarray]]:
+        graph.vp.closeness_centrality = graph.new_vertex_property("double", val=0)
+        graph.vp.img_closeness = graph.new_vertex_property("int", val=0)
+
+        vertices = graph.get_vertices(vprops=[graph.vp.token_num])
+        all_img_vertices = vertices[np.isin(vertices[:, 1], graph.vp.token_num.a[(graph.vp.img_contrib.a == 1)])]
+
+        if graph.num_vertices() == 0 or all_img_vertices.shape[0] == 0:
+            return graph, [graph.vp.closeness_centrality.a, graph.vp.img_closeness.a]
+
+        distances = shortest_distance(GraphView(graph, reversed=True), directed=True).get_2d_array(
+            pos=all_img_vertices[:, 0]
+        )
+
+
+        normalized_inverse_distances = np.divide(distances.shape[0] - 1., distances,
+                                         where=np.isfinite(distances) & (distances != 0),
+                                         out=np.zeros_like(distances, dtype=float))
+
+        graph.vp.closeness_centrality.a = normalized_inverse_distances.sum(axis=0)
+
+        graph.vp.img_closeness.a = distances.min(axis=0)
+        reached = graph.vp.img_closeness.a < 1000000
+        graph.vp.img_closeness.a = np.where(reached, graph.gp.num_layers - graph.vp.img_closeness.a, 0)
+
+        return graph, [graph.vp.closeness_centrality.a, graph.vp.img_closeness.a]
+
+
+
 class BaseGraphMetric(ABC):
     labels = []
     name = "base"
@@ -120,7 +155,22 @@ class GraphDensity(BaseGraphMetric):
         layer_nums = nodes[:, 1]
         token_nums = nodes[:, 2]
         mask = (layer_nums[:, None] == (layer_nums - 1)) & (token_nums[:, None] <= token_nums)
-        return [(graph.num_edges() / mask.sum()).item()]
+        return [(graph.num_edges() /mask.sum()).item() if mask.sum() > 0 else 0]
+
+
+class SubgraphDensity(BaseGraphMetric):
+    name = "subgraph_density"
+    labels = ["img_density", "txt_density", "num_img_tokens", "num_txt_tokens"]
+
+    @staticmethod
+    def __call__(graph: Graph) -> list[Number]:
+        img_tokens_mask = (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end)
+        if graph.num_edges() == 0:
+            return [0, 0, img_tokens_mask.sum(), (~img_tokens_mask).sum()]
+        img_subgraph = GraphView(graph, vfilt=img_tokens_mask)
+        txt_subgraph = GraphView(graph, vfilt=~img_tokens_mask)
+        return [GraphDensity.__call__(img_subgraph)[0], GraphDensity.__call__(txt_subgraph)[0],
+                img_tokens_mask.sum().item(), (~img_tokens_mask).sum().item()]
 
 
 class NodeEdgeDensities(BaseGraphMetric):

@@ -1,1 +1,1 @@
-text: "<s>[INST]Describe this image in detail\n[IMG][/INST]"
+text: "<s>[INST][IMG]\nDescribe this image in detail[/INST]"

@@ -4,6 +4,7 @@ import torch
 from transformers import LlavaForConditionalGeneration, AutoProcessor, GenerationConfig
 
 from datasets.base import EvalWrapper
+from datasets.clevr import ClevrDataset, ClevrCollate, ClevrEval
 from datasets.coco import UnlabeledCoco, UnlabeledCocoCollate, UnlabeledCocoEval
 from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
 from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
@@ -48,7 +49,7 @@ def create_model(cfg):
                 low_cpu_mem_usage=True,
             )
             molmo.model.vision_backbone = molmo.model.vision_backbone.to(torch.float)
-            processor = MolmoProcessor.from_pretrained(cfg.model.config_name, trust_remote_code=True)
+            processor = MolmoProcessor.from_pretrained(cfg.model.processor_path, trust_remote_code=True)
             model = TransparentMolmo(cfg.model.name, molmo, processor, molmo.device, dtype)
             model = GenerativeWrapper(processor, model, molmo.device, dtype, list(cfg.model.vqa_tokens),
                                       output_attentions=True)
@@ -69,7 +70,7 @@ def create_model(cfg):
         case _:
             raise ValueError(f"Unsupported model '{cfg.model.name}'")
 
-    return model 
+    return model
 
 
 def create_eval_task(cfg):
@@ -113,6 +114,11 @@ def create_eval_task(cfg):
             collate = MMVPCollate()
             wrapper = MMVPEval(cfg.prompt.text, cfg.task.eval_method)
 
+        case "CLEVR":
+            dataset = ClevrDataset(Path(cfg.task.json_path), Path(cfg.task.img_dir),
+                                   [int(cfg.task.question_family_index)] if cfg.task.question_family_index else None)
+            collate = ClevrCollate()
+            wrapper = ClevrEval(cfg.prompt.text, cfg.task.eval_method)
         case _:
             raise ValueError(f"Unsupported task '{cfg.task.name}'")
 
@@ -145,10 +151,14 @@ def create_metrics(cfg) -> tuple[list[BaseVertexMetric], list[BaseGraphMetric]]:
         vertex_metrics.append(ModalityCentrality())
     if cfg.local_clustering_coefficient:
         vertex_metrics.append(LocalClusteringCoefficient())
+    if cfg.closeness_centrality:
+        vertex_metrics.append(ClosenessCentrality())
+
 
     graph_metrics = []
     if cfg.graph_density:
         graph_metrics.append(GraphDensity())
+        graph_metrics.append(SubgraphDensity())
     if cfg.node_edge_densities:
         graph_metrics.append(NodeEdgeDensities())
     if cfg.cross_modal_edges:

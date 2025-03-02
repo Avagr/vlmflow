@@ -6,13 +6,13 @@ from PIL import Image
 import torch
 import wandb
 
-from datasets.base import BaseDataset
+from datasets.base import BaseDataset, EvalWrapper
 from models.wrappers import GenerativeWrapper
 from utils.eval import EvaluationResult
 
 
 class MMVP(BaseDataset):
-    table_columns = ["image", "question", "options", "prediction", "answer"]
+    table_columns = ["idx", "image", "question", "options", "prediction", "answer"]
 
     # noinspection PyTypeChecker
     def __init__(self, csv_path: Path, img_dir: Path):
@@ -43,6 +43,7 @@ class MMVP(BaseDataset):
         img_path = self.img_dir / f"{self.data[idx]['id']}.jpg"
         image = wandb.Image(str(img_path.resolve())) if img_as_object else f"{self.data[idx]['id']}.jpg"
         return [
+            idx,
             image,
             self.data[idx]['question'],
             "\n".join(f"{c}: {ch}" for c, ch in zip("AB", self.data[idx]['options'])),
@@ -68,7 +69,7 @@ class MMVPCollate:
         return torch.LongTensor(idx), images, questions, options, torch.LongTensor(answers)
 
 
-class MMVPEval:
+class MMVPEval(EvalWrapper):
 
     def __init__(self, prompt, eval_method="abcd"):
         """
@@ -93,7 +94,7 @@ class MMVPEval:
 
     def __call__(self, batch, model: GenerativeWrapper) -> EvaluationResult:
         idx, images, questions, options, answers = batch
-        # A workaround for a long-standing pytorch bug with pin_memory (https://github.com/pytorch/pytorch/issues/48419)
+
         batch_size = idx.shape[0]
         match self.eval_method:
             case "abcd":

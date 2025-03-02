@@ -1,12 +1,12 @@
 import pickle
 from typing import Literal
 
-from graph_tool import Graph, PropertyMap, load_graph  # noqa
-from graph_tool.topology import kcore_decomposition  # noqa
+from graph_tool import Graph, PropertyMap, load_graph, GraphView  # noqa
+from graph_tool.centrality import closeness  # noqa
+from graph_tool.topology import kcore_decomposition, shortest_distance  # noqa
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 from transformers import AutoProcessor
 
 from models.transparent_models import TransparentLlava, TransparentMolmo, TransparentPixtral
@@ -26,6 +26,7 @@ def read_metric_results(path: str):
     return (
         pd.read_parquet(f"{path}/results_table.parquet"),
         pickle.load(open(f"{path}/node_layers_dict.pkl", "rb")),
+        pickle.load(open(f"{path}/node_pos_dict.pkl", "rb")),
         pickle.load(open(f"{path}/modality_centrality_results.pkl", "rb")),
         pickle.load(open(f"{path}/graph_metrics_results.pkl", "rb")),
     )
@@ -46,7 +47,8 @@ def get_image_dir(run_dir):
     image_paths = {
         "WhatsUp_": "/home/projects/shimon/agroskin/datasets/whatsup",
         "SEED": "/home/projects/shimon/Collaboration/seedbench/SEED-Bench-2-image",
-        "COCO": "/home/projects/bagon/shared/coco/unlabeled2017"
+        "COCO": "/home/projects/bagon/shared/coco/unlabeled2017",
+        "CLEVR_val": "/home/projects/shimon/agroskin/datasets/clevr/images/val",
     }
     for k, path in image_paths.items():
         if k in run_dir:
@@ -54,56 +56,44 @@ def get_image_dir(run_dir):
     raise ValueError(f"Dataset from run {run_dir} is not supported")
 
 
-@st.cache_resource(hash_funcs={dict: id})
-def process_centrality(centrality):
-    txt_centrality = []
-    img_centrality = []
-    total_centrality = []
-    intersection_centrality = []
-    jaccard_similarity = []
-    txt_only = []
-    img_only = []
+@st.cache_resource(hash_funcs={list[Graph]: id})
+def process_centrality(graphs: list[Graph], adaptive_normalization=True):
+    txt_centrality, img_centrality, total_centrality, intersection_centrality, txt_difference, img_difference = [], [], [], [], [], []
+    for graph in graphs:
+        # if graph.num_vertices()
+        txt_centr = graph.vp.txt_centrality.a
+        img_centr = graph.vp.img_centrality.a
+        if adaptive_normalization:
+            img_tokens_mask = (graph.vp.img_contrib.a == 1) & (graph.vp.layer_num.a == 0)
+            txt_tokens_mask = (graph.vp.txt_contrib.a == 1) & (graph.vp.layer_num.a == 0)
+            img_norm = (graph.vp.token_num.a[img_tokens_mask, None] <= graph.vp.token_num.a[None]).sum(axis=0)
+            txt_norm = (graph.vp.token_num.a[txt_tokens_mask, None] <= graph.vp.token_num.a[None]).sum(axis=0)
+            total_norm = img_norm + txt_norm
+            intersection_norm = np.minimum(txt_norm, img_norm)
 
-    for i in range(len(centrality['txt_centrality'])):
-        txt_sample = centrality['txt_centrality'][i]
-        img_sample = centrality['img_centrality'][i]
-        txt_centrality.append([])
-        img_centrality.append([])
-        total_centrality.append([])
-        intersection_centrality.append([])
-        jaccard_similarity.append([])
-        txt_only.append([])
-        img_only.append([])
-        for j, txt_tok, img_tok in zip(range(len(txt_sample)), txt_sample, img_sample):
-            if (len(txt_tok) == 0) or (len(img_tok) == 0):
-                jaccard_similarity[-1].append(np.nan)
-                txt_centrality[-1].append(np.nan)
-                img_centrality[-1].append(np.nan)
-                total_centrality[-1].append(np.nan)
-                intersection_centrality[-1].append(np.nan)
-                txt_only[-1].append(np.nan)
-                img_only[-1].append(np.nan)
-                continue
-            total_centrality[-1].append((txt_tok + img_tok))
-            intersection_centrality[-1].append(np.where(txt_tok > img_tok, img_tok, txt_tok))
+        else:
+            # Can do this because everything will converge at the final node
+            txt_norm = txt_centr.max()
+            img_norm = img_centr.max()
+            total_norm = (txt_centr + img_centr).max()
+            intersection_norm = min(txt_norm, img_norm)
 
-            txt_only[-1].append(txt_tok - intersection_centrality[-1][-1])
-            img_only[-1].append(img_tok - intersection_centrality[-1][-1])
+        intersection = np.minimum(txt_centr, img_centr)
 
-            jaccard_similarity[-1].append(
-                (intersection_centrality[-1][-1].sum() / total_centrality[-1][-1].sum()).item())
-
-            if intersection_centrality[-1][-1].max() != 0:
-                intersection_centrality[-1][-1] = intersection_centrality[-1][-1] / min(txt_tok.max(), img_tok.max())
-
-            total_centrality[-1][-1] = total_centrality[-1][-1] / total_centrality[-1][-1].max()
-
-            txt_centrality[-1].append((txt_tok / txt_tok.max()) if txt_tok.max() != 0 else txt_tok)
-            img_centrality[-1].append((img_tok / img_tok.max()) if img_tok.max() != 0 else img_tok)
-            txt_only[-1][-1] = (txt_only[-1][-1] / txt_tok.max()) if txt_tok.max() != 0 else txt_only[-1][-1]
-            img_only[-1][-1] = (img_only[-1][-1] / img_tok.max()) if img_tok.max() != 0 else img_only[-1][-1]
-
-    return txt_centrality, img_centrality, total_centrality, intersection_centrality, txt_only, img_only, jaccard_similarity
+        txt_centrality.append(np.divide(txt_centr, txt_norm, out=np.zeros_like(txt_centr, dtype=float),
+                                        where=txt_norm != 0))
+        img_centrality.append(np.divide(img_centr, img_norm, out=np.zeros_like(txt_centr, dtype=float),
+                                        where=img_norm != 0))
+        total_centrality.append(np.divide(txt_centr + img_centr, total_norm, out=np.zeros_like(txt_centr, dtype=float),
+                                          where=total_norm != 0))
+        intersection_centrality.append(
+            np.divide(intersection, intersection_norm, out=np.zeros_like(txt_centr, dtype=float),
+                      where=intersection_norm != 0))
+        txt_difference.append(np.divide(txt_centr - intersection, txt_norm, out=np.zeros_like(txt_centr, dtype=float),
+                                        where=txt_norm != 0))
+        img_difference.append(np.divide(img_centr - intersection, img_norm, out=np.zeros_like(txt_centr, dtype=float),
+                                        where=img_norm != 0))
+    return txt_centrality, img_centrality, total_centrality, intersection_centrality, txt_difference, img_difference
 
 
 @st.cache_resource
@@ -147,6 +137,57 @@ def get_kcore(graphs: list[Graph]):
     for graph in graphs:
         res.append(kcore_decomposition(graph).a)
         res[-1] = res[-1] / res[-1].max()
+    return res
+
+
+@st.cache_resource(hash_funcs={list[Graph]: id})
+def get_closeness_centrality(graphs: list[Graph]):
+    res = []
+    for graph in graphs:
+        if graph.vp.closeness_centrality.a.max() == 0:
+            res.append(np.zeros(graph.num_vertices()))
+            continue
+        res.append(graph.vp.closeness_centrality.a / graph.vp.closeness_centrality.a.max())
+    return res
+
+
+@st.cache_resource(hash_funcs={list[Graph]: id})
+def get_distance_closeness_centrality(graphs: list[Graph]):
+    res = []
+    for graph in graphs:
+        # root_img_vertices = graph.get_vertices()[(graph.vp.img_contrib.a == 1) & (graph.vp.layer_num.a == 0)]
+        vertices = graph.get_vertices(vprops=[graph.vp.token_num])
+        all_img_vertices = vertices[np.isin(vertices[:, 1], graph.vp.token_num.a[(graph.vp.img_contrib.a == 1)])]
+        negative_weights = graph.new_edge_property("float")
+        negative_weights.a = -graph.ep.weight.a
+        centrality = -1 * shortest_distance(GraphView(graph, reversed=True), directed=True,
+                                               weights=negative_weights, dag=True).get_2d_array(
+            # pos=root_img_vertices,
+            pos=all_img_vertices[:, 0],
+        )
+        res.append(np.divide(centrality.shape[0] - 1., centrality, where=np.isfinite(centrality) & (centrality != 0),
+                             out=np.zeros_like(centrality, dtype=float)).sum(axis=0))
+        if res[-1].max() != 0:
+            res[-1] = res[-1] / res[-1].max()
+    return res
+
+@st.cache_resource(hash_funcs={list[Graph]: id})
+def get_closeness(graphs: list[Graph]): 
+    res = []
+    for graph in graphs:
+        vertices = graph.get_vertices(vprops=[graph.vp.token_num])
+        all_img_vertices = vertices[np.isin(vertices[:, 1], graph.vp.token_num.a[(graph.vp.img_contrib.a == 1)])]
+        if all_img_vertices.shape[0] == 0:
+            res.append(np.zeros(graph.num_vertices()))
+            continue
+        closeness_scores = shortest_distance(GraphView(graph, reversed=True), directed=True).get_2d_array(
+            pos=all_img_vertices[:, 0]
+        ).min(axis=0)
+        reached = closeness_scores < 100000
+        closeness_scores = np.where(reached, graph.gp.num_layers - closeness_scores, 0)
+        res.append(closeness_scores)
+        if res[-1].max() != 0:
+            res[-1] = res[-1] / res[-1].max()
     return res
 
 
