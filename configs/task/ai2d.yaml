@@ -1,0 +1,5 @@
+name: "AI2D"
+base_dir: "/home/projects/shimon/agroskin/datasets/ai2d"
+csv_path: "/home/projects/shimon/agroskin/datasets/ai2d/ai2d_test_ids.csv"
+eval_method: 'abcd'
+display_name: "${task.name}"

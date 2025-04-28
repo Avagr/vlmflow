@@ -49,6 +49,7 @@ def get_image_dir(run_dir):
         "SEED": "/home/projects/shimon/Collaboration/seedbench/SEED-Bench-2-image",
         "COCO": "/home/projects/bagon/shared/coco/unlabeled2017",
         "CLEVR_val": "/home/projects/shimon/agroskin/datasets/clevr/images/val",
+        "AI2D": "/home/projects/shimon/agroskin/datasets/ai2d/images",
     }
     for k, path in image_paths.items():
         if k in run_dir:
@@ -152,31 +153,42 @@ def get_closeness_centrality(graphs: list[Graph]):
 
 
 @st.cache_resource(hash_funcs={list[Graph]: id})
-def get_distance_closeness_centrality(graphs: list[Graph]):
+def get_token_closeness_centrality(graphs: list[Graph]):
     res = []
     for graph in graphs:
-        # root_img_vertices = graph.get_vertices()[(graph.vp.img_contrib.a == 1) & (graph.vp.layer_num.a == 0)]
         vertices = graph.get_vertices(vprops=[graph.vp.token_num])
-        all_img_vertices = vertices[np.isin(vertices[:, 1], graph.vp.token_num.a[(graph.vp.img_contrib.a == 1)])]
-        negative_weights = graph.new_edge_property("float")
-        negative_weights.a = -graph.ep.weight.a
-        centrality = -1 * shortest_distance(GraphView(graph, reversed=True), directed=True,
-                                               weights=negative_weights, dag=True).get_2d_array(
-            # pos=root_img_vertices,
-            pos=all_img_vertices[:, 0],
+        all_img_vertices = vertices[(graph.vp.token_num.a >= graph.gp.img_begin) &
+                                    (graph.vp.token_num.a < graph.gp.img_end) &
+                                    (graph.vp.layer_num.a == 0)]
+        if all_img_vertices.shape[0] == 0:
+            res.append(np.zeros(graph.num_vertices()))
+            continue
+        distances = shortest_distance(GraphView(graph, reversed=True), directed=True).get_2d_array(
+            pos=all_img_vertices[:, 0]
         )
-        res.append(np.divide(centrality.shape[0] - 1., centrality, where=np.isfinite(centrality) & (centrality != 0),
-                             out=np.zeros_like(centrality, dtype=float)).sum(axis=0))
+        print(distances)
+        normalized_inverse_distances = np.divide(distances.shape[0] - 1., distances,
+                                                 where=np.isfinite(distances) & (distances != 0),
+                                                 out=np.zeros_like(distances, dtype=float))
+
+        res.append(normalized_inverse_distances.sum(axis=0))
         if res[-1].max() != 0:
             res[-1] = res[-1] / res[-1].max()
     return res
 
+
 @st.cache_resource(hash_funcs={list[Graph]: id})
-def get_closeness(graphs: list[Graph]): 
+def get_closeness(graphs: list[Graph], dist_to_all_img_vertices=True):
     res = []
     for graph in graphs:
         vertices = graph.get_vertices(vprops=[graph.vp.token_num])
-        all_img_vertices = vertices[np.isin(vertices[:, 1], graph.vp.token_num.a[(graph.vp.img_contrib.a == 1)])]
+        if dist_to_all_img_vertices:
+            all_img_vertices = vertices[
+                (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end)]
+        else:
+            all_img_vertices = vertices[
+                (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end) & (
+                            graph.vp.layer_num == 0)]
         if all_img_vertices.shape[0] == 0:
             res.append(np.zeros(graph.num_vertices()))
             continue

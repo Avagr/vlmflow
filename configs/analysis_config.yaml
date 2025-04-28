@@ -11,7 +11,7 @@ resume_wandb_id: null
 max_workers: 16
 
 results_dir: /home/projects/shimon/agroskin/projects/vlmflow/results
-run_dir: WhatsUp_A/molmo_grouped_2024_12_19-18_23_55
+run_dir: ???
 
 construct_graphs: true
 graph_threshold: 0.01  
@@ -24,7 +24,7 @@ closeness_centrality: true
 
 # Graph metrics
 graph_density: true
-node_edge_densities: true
+graph_saturation: true
 cross_modal_edges: ${modality_contribution}
 global_clustering_coefficient: true
 residual_stream_heights: true

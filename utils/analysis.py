@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.stride_tricks import as_strided
 import numpy_indexed as npi
 from tqdm.auto import tqdm
 
@@ -21,7 +22,7 @@ def get_token_layer_matrices(vocab_size, num_layers, dataset_metrics):
 
     token_occurrence = np.zeros(vocab_size, dtype=float)
 
-    for i in table.idx:
+    for i in tqdm(table.idx):
         ids = table.generated_ids[i]
         unique, counts = np.unique(ids[:-1], return_counts=True)
         token_occurrence[unique] += counts
@@ -178,3 +179,35 @@ def get_token_layer_sequence_matrices(vocab_size, num_layers, sequence_length, d
         'tl_out_degree': tl_out_degree,
         'token_occurrence': token_occurrence
     }
+
+def rolling_window(arr, window):
+    shape = (arr.size - window + 1, window)
+    strides = (arr.strides[0], arr.strides[0])
+    return as_strided(arr, shape=shape, strides=strides)
+
+
+def find_sections(sequence: np.ndarray, markers: list[list[int]], marker_length, text_start=0) -> list[int]:
+    indices = []
+    start_search = 0
+    rolling_windows = rolling_window(sequence[text_start:], marker_length)
+    for subseq in markers:
+        if len(subseq) != marker_length:
+            raise ValueError(f"Subsequence {subseq} does not match length {marker_length}")
+        matches = np.all(rolling_windows[start_search:] == subseq, axis=1)
+        if not np.any(matches):
+            raise ValueError("Subsequence not found")
+
+        match_pos = np.argmax(matches)  # find first match
+        actual_pos = start_search + match_pos + text_start
+        indices.append(actual_pos)
+
+        start_search = start_search + match_pos + len(subseq)
+    return indices
+
+def get_top_tokens(metric, tokenizer, k, layer_from=0, layer_to=None):
+    if layer_to is None:
+        layer_to = metric.shape[1]
+    top_tokens = np.argsort(metric[:, layer_from:layer_to].sum(axis=1))[::-1][:k]
+    top_tokens_labels = tokenizer.convert_ids_to_tokens(top_tokens)
+    top_tokens_labels = [t.replace('Ġ', "_").replace('Ċ', '\\n').replace('<s>', '[s]') for t in top_tokens_labels]
+    return top_tokens, top_tokens_labels

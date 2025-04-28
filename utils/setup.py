@@ -3,12 +3,13 @@ from pathlib import Path
 import torch
 from transformers import LlavaForConditionalGeneration, AutoProcessor, GenerationConfig
 
-from datasets.base import EvalWrapper
-from datasets.clevr import ClevrDataset, ClevrCollate, ClevrEval
-from datasets.coco import UnlabeledCoco, UnlabeledCocoCollate, UnlabeledCocoEval
-from datasets.mmvp import MMVP, MMVPCollate, MMVPEval
-from datasets.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
-from datasets.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate, GroupedWhatsUp, AllPermutationsWhatsUp
+from data.base import EvalWrapper
+from data.clevr import ClevrDataset, ClevrCollate, ClevrEval
+from data.coco import UnlabeledCoco, UnlabeledCocoCollate, UnlabeledCocoEval
+from data.mmvp import MMVP, MMVPCollate, MMVPEval
+from data.seedbench import SEEDBenchSingleImage, SEEDBenchSingleImageEval, SEEDBenchCollate
+from data.whatsup import WhatsUp, WhatsUpEval, WhatsUpCollate, GroupedWhatsUp, AllPermutationsWhatsUp
+from data.ai2d import AI2D, AI2DCollate, AI2DEval
 from flow.metrics import *
 from models.molmo.modeling_molmo import MolmoForCausalLM
 from models.molmo.preprocessing_molmo import MolmoProcessor
@@ -119,6 +120,10 @@ def create_eval_task(cfg):
                                    [int(cfg.task.question_family_index)] if cfg.task.question_family_index else None)
             collate = ClevrCollate()
             wrapper = ClevrEval(cfg.prompt.text, cfg.task.eval_method)
+        case "AI2D":
+            dataset = AI2D()
+            collate = AI2DCollate()
+            wrapper = AI2DEval(cfg.prompt.text, cfg.task.eval_method)
         case _:
             raise ValueError(f"Unsupported task '{cfg.task.name}'")
 
@@ -153,14 +158,14 @@ def create_metrics(cfg) -> tuple[list[BaseVertexMetric], list[BaseGraphMetric]]:
         vertex_metrics.append(LocalClusteringCoefficient())
     if cfg.closeness_centrality:
         vertex_metrics.append(ClosenessCentrality())
+        # vertex_metrics.append(OldClosenessCentrality())
 
 
     graph_metrics = []
     if cfg.graph_density:
         graph_metrics.append(GraphDensity())
-        graph_metrics.append(SubgraphDensity())
-    if cfg.node_edge_densities:
-        graph_metrics.append(NodeEdgeDensities())
+    if cfg.graph_saturation:
+        graph_metrics.append(GraphSaturation())
     if cfg.cross_modal_edges:
         graph_metrics.append(CrossModalEdges())
     if cfg.global_clustering_coefficient:

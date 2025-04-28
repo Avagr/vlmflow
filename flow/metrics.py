@@ -6,6 +6,7 @@ from graph_tool.search import dfs_iterator
 from graph_tool.spectral import adjacency
 from graph_tool.topology import shortest_distance
 import numpy as np
+import torch
 
 EPS = 1e-5
 
@@ -101,6 +102,39 @@ class LocalClusteringCoefficient(BaseVertexMetric):
         return graph, [graph.vp.local_clustering.a]
 
 
+class OldClosenessCentrality(BaseVertexMetric):
+    name = "old_closeness_centrality"
+    labels = ["old_closeness_centrality", "old_img_closeness"]
+
+    @staticmethod
+    def __call__(graph: Graph, _) -> tuple[Graph, list[np.ndarray]]:
+        graph.vp.old_closeness_centrality = graph.new_vertex_property("double", val=0)
+        graph.vp.old_img_closeness = graph.new_vertex_property("int", val=0)
+
+        vertices = graph.get_vertices(vprops=[graph.vp.token_num])
+        all_img_vertices = vertices[
+            (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end)]
+
+        if graph.num_vertices() == 0 or all_img_vertices.shape[0] == 0:
+            return graph, [graph.vp.old_closeness_centrality.a, graph.vp.old_img_closeness.a]
+
+        distances = shortest_distance(GraphView(graph, reversed=True), directed=True).get_2d_array(
+            pos=all_img_vertices[:, 0]
+        )
+
+        normalized_inverse_distances = np.divide(distances.shape[0] - 1., distances,
+                                                 where=np.isfinite(distances) & (distances != 0),
+                                                 out=np.zeros_like(distances, dtype=float))
+
+        graph.vp.old_closeness_centrality.a = normalized_inverse_distances.sum(axis=0)
+
+        graph.vp.old_img_closeness.a = distances.min(axis=0)
+        reached = graph.vp.old_img_closeness.a < 1000000
+        graph.vp.old_img_closeness.a = np.where(reached, graph.gp.num_layers - graph.vp.old_img_closeness.a, 0)
+
+        return graph, [graph.vp.old_closeness_centrality.a, graph.vp.old_img_closeness.a]
+
+
 class ClosenessCentrality(BaseVertexMetric):
     name = "closeness_centrality"
     labels = ["closeness_centrality", "img_closeness"]
@@ -111,7 +145,9 @@ class ClosenessCentrality(BaseVertexMetric):
         graph.vp.img_closeness = graph.new_vertex_property("int", val=0)
 
         vertices = graph.get_vertices(vprops=[graph.vp.token_num])
-        all_img_vertices = vertices[np.isin(vertices[:, 1], graph.vp.token_num.a[(graph.vp.img_contrib.a == 1)])]
+        all_img_vertices = vertices[(graph.vp.token_num.a >= graph.gp.img_begin) &
+                                    (graph.vp.token_num.a < graph.gp.img_end) &
+                                    (graph.vp.layer_num.a == 0)] # Only the image tokens in the first layer
 
         if graph.num_vertices() == 0 or all_img_vertices.shape[0] == 0:
             return graph, [graph.vp.closeness_centrality.a, graph.vp.img_closeness.a]
@@ -120,10 +156,9 @@ class ClosenessCentrality(BaseVertexMetric):
             pos=all_img_vertices[:, 0]
         )
 
-
         normalized_inverse_distances = np.divide(distances.shape[0] - 1., distances,
-                                         where=np.isfinite(distances) & (distances != 0),
-                                         out=np.zeros_like(distances, dtype=float))
+                                                 where=np.isfinite(distances) & (distances != 0),
+                                                 out=np.zeros_like(distances, dtype=float))
 
         graph.vp.closeness_centrality.a = normalized_inverse_distances.sum(axis=0)
 
@@ -132,7 +167,6 @@ class ClosenessCentrality(BaseVertexMetric):
         graph.vp.img_closeness.a = np.where(reached, graph.gp.num_layers - graph.vp.img_closeness.a, 0)
 
         return graph, [graph.vp.closeness_centrality.a, graph.vp.img_closeness.a]
-
 
 
 class BaseGraphMetric(ABC):
@@ -145,46 +179,65 @@ class BaseGraphMetric(ABC):
         pass
 
 
+@torch.compile()
+def density_helper(layer_nums, token_nums, img_tokens_mask):
+    mask = (layer_nums[:, None] == (layer_nums - 1)) & (token_nums[:, None] <= token_nums)
+    img_mask = mask & (img_tokens_mask[:, None] & img_tokens_mask)
+    txt_mask = mask & (~img_tokens_mask[:, None] & ~img_tokens_mask)
+    return mask.sum(), img_mask.sum(), txt_mask.sum()
+
+
 class GraphDensity(BaseGraphMetric):
     name = "graph_density"
-    labels = ["graph_density"]
+    labels = ["graph_density", "img_density", "txt_density"]
 
     @staticmethod
     def __call__(graph: Graph) -> list[Number]:
-        nodes = graph.get_vertices(vprops=[graph.vp.layer_num, graph.vp.token_num])
-        layer_nums = nodes[:, 1]
-        token_nums = nodes[:, 2]
-        mask = (layer_nums[:, None] == (layer_nums - 1)) & (token_nums[:, None] <= token_nums)
-        return [(graph.num_edges() /mask.sum()).item() if mask.sum() > 0 else 0]
-
-
-class SubgraphDensity(BaseGraphMetric):
-    name = "subgraph_density"
-    labels = ["img_density", "txt_density", "num_img_tokens", "num_txt_tokens"]
-
-    @staticmethod
-    def __call__(graph: Graph) -> list[Number]:
-        img_tokens_mask = (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end)
         if graph.num_edges() == 0:
-            return [0, 0, img_tokens_mask.sum(), (~img_tokens_mask).sum()]
+            return [0, 0, 0]
+        img_tokens_mask = (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end)
         img_subgraph = GraphView(graph, vfilt=img_tokens_mask)
         txt_subgraph = GraphView(graph, vfilt=~img_tokens_mask)
-        return [GraphDensity.__call__(img_subgraph)[0], GraphDensity.__call__(txt_subgraph)[0],
-                img_tokens_mask.sum().item(), (~img_tokens_mask).sum().item()]
+        layer_nums = torch.from_numpy(graph.vp.layer_num.a).cuda()
+        token_nums = torch.from_numpy(graph.vp.token_num.a).cuda()
+        img_tokens_mask = torch.from_numpy(img_tokens_mask).cuda()
+        # mask = (layer_nums[:, None] == (layer_nums - 1)) & (token_nums[:, None] <= token_nums)
+        # img_mask = mask & (img_tokens_mask[:, None] & img_tokens_mask)
+        # txt_mask = mask & (~img_tokens_mask[:, None] & ~img_tokens_mask)
+        # graph_density = graph.num_edges() / mask.sum().cpu().item() if mask.sum() > 0 else 0
+        # img_density = img_subgraph.num_edges() / img_mask.sum().cpu().item()  if img_mask.sum() > 0 else 0
+        # txt_density = txt_subgraph.num_edges() / txt_mask.sum().cpu().item()  if txt_mask.sum() > 0 else 0
+        mask_sum, img_mask_sum, txt_mask_sum = density_helper(layer_nums, token_nums, img_tokens_mask)
+        graph_density = graph.num_edges() / mask_sum.cpu().item() if mask_sum > 0 else 0
+        img_density = img_subgraph.num_edges() / img_mask_sum.cpu().item() if img_mask_sum > 0 else 0
+        txt_density = txt_subgraph.num_edges() / txt_mask_sum.cpu().item() if txt_mask_sum > 0 else 0
+        return [graph_density, img_density, txt_density]
 
 
-class NodeEdgeDensities(BaseGraphMetric):
-    name = "node_edge_densities"
-    labels = ["node_density", "edge_density"]
+class GraphSaturation(BaseGraphMetric):
+    name = "graph_saturation"
+    labels = ["node_saturation", "edge_saturation",
+              "node_img_saturation", "edge_img_saturation",
+              "node_txt_saturation", "edge_txt_saturation"]
 
     @staticmethod
     def __call__(graph: Graph) -> list[Number]:
         if graph.num_edges() == 0:
-            return [0, 0]
+            return [0, 0, 0, 0, 0, 0]
         num_layers = graph.gp.num_layers + 1
-        num_tokens = graph.vp.token_num.a.max() + 1
-        return [graph.num_vertices() / (num_layers * num_tokens),
-                graph.num_edges() / (num_layers * (num_tokens * (num_tokens + 1) / 2))]
+        num_tokens = graph.vp.token_num.a.max().item() + 1
+        num_img_tokens = graph.gp.img_end - graph.gp.img_begin
+        num_txt_tokens = num_tokens - num_img_tokens
+        img_tokens_mask = (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end)
+        img_subgraph = GraphView(graph, vfilt=img_tokens_mask)
+        txt_subgraph = GraphView(graph, vfilt=~img_tokens_mask)
+        node_sat = graph.num_vertices() / (num_layers * num_tokens)
+        edge_sat = graph.num_edges() / (num_layers * (num_tokens * (num_tokens + 1) / 2))
+        node_img_sat = img_subgraph.num_vertices() / (num_layers * num_img_tokens)
+        edge_img_sat = img_subgraph.num_edges() / (num_layers * (num_img_tokens * (num_img_tokens + 1) / 2))
+        node_txt_sat = txt_subgraph.num_vertices() / (num_layers * num_txt_tokens)
+        edge_txt_sat = txt_subgraph.num_edges() / (num_layers * (num_txt_tokens * (num_txt_tokens + 1) / 2))
+        return [node_sat, edge_sat, node_img_sat, edge_img_sat, node_txt_sat, edge_txt_sat]
 
 
 class GlobalClusteringCoefficient(BaseGraphMetric):
@@ -200,24 +253,28 @@ class GlobalClusteringCoefficient(BaseGraphMetric):
 
 class CrossModalEdges(BaseGraphMetric):
     name = "cross_modal_edges"
-    labels = ["cross_modal_edges"]
+    labels = ["cross_modal_edges_layers", "cross_modal_edges_num", "cross_modal_edges_ratio"]
 
     @staticmethod
     def __call__(graph: Graph) -> list[Number]:
         if graph.num_edges() == 0:
-            return [0]
-        vs = graph.get_vertices(vprops=[graph.vp.token_num, graph.vp.layer_num])
-        is_token_image = {}
-        token_vs = vs[vs[:, 2] == 0]
-        for tok in token_vs:
-            is_token_image[tok[1]] = graph.vp.modality[tok[0]] == 'img'
-        vertex_modalities = graph.new_vertex_property("int", val=0)
-        for i, tok_num in graph.iter_vertices(vprops=[graph.vp.token_num]):
-            if tok_num in is_token_image and is_token_image[tok_num]:
-                vertex_modalities[i] = 1
-        source_mod = edge_endpoint_property(graph, vertex_modalities, endpoint='source').a
-        target_mod = edge_endpoint_property(graph, vertex_modalities, endpoint='target').a
-        return [((source_mod == 1) & (target_mod == 0)).sum().item() / graph.num_edges()]
+            return [np.array([]), 0, 0]
+        # vs = graph.get_vertices(vprops=[graph.vp.token_num, graph.vp.layer_num])
+        # is_token_image = {}
+        # token_vs = vs[vs[:, 2] == 0]
+        # for tok in token_vs:
+        #     is_token_image[tok[1]] = graph.vp.modality[tok[0]] == 'img'
+        vertex_modalities = graph.new_vertex_property("bool", val=False)
+        vertex_modalities.a = (graph.vp.token_num.a >= graph.gp.img_begin) & (graph.vp.token_num.a < graph.gp.img_end)
+        # for i, tok_num in graph.iter_vertices(vprops=[graph.vp.token_num]):
+        #     if tok_num in is_token_image and is_token_image[tok_num]:
+        #         vertex_modalities[i] = 1
+        source_mod = edge_endpoint_property(graph, vertex_modalities, endpoint='source').a.astype(bool)
+        target_mod = edge_endpoint_property(graph, vertex_modalities, endpoint='target').a.astype(bool)
+        cme_mask = (source_mod & ~target_mod)  # Not counting the txt -> img edges as it could only be from BoS
+        cme_num = cme_mask.sum().item()
+        cme_layers = edge_endpoint_property(graph, graph.vp.layer_num, endpoint='source').a[cme_mask]
+        return [cme_layers, cme_num, cme_num / graph.num_edges()]
 
 
 # class NumCrossModalEdgesCentrality(BaseGraphMetric):

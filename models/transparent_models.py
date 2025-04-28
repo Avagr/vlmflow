@@ -103,15 +103,16 @@ class TransparentLlava(TransparentLlm):
         input_ids = self.last_run_inputs['input_ids']
         res = torch.zeros(self.last_run_logits_shape[:2], dtype=torch.int64, device=self.device)
         res.fill_(TransparentLlava.image_token_id)
-        img_begin = (input_ids == TransparentLlava.image_token_id).nonzero()
+        img_begin = (input_ids == TransparentLlava.image_token_id).nonzero()[:1]
         for i, begin in img_begin:
             res[i, :begin] = input_ids[i, :begin]
-            res[i, begin + 576:] = input_ids[i, begin + 1:]
+            res[i, begin + 576:] = input_ids[i, begin + 576:]
         return res
 
     def image_token_pos(self, batch_i: int) -> (int, int):
         input_ids = self.last_run_inputs['input_ids']
-        img_begin = (input_ids[batch_i] == TransparentLlava.image_token_id).nonzero()
+        img_begin = (input_ids[batch_i] == TransparentLlava.image_token_id).nonzero()[0]
+        # print(img_begin[0], img_begin)
         return img_begin.item(), img_begin.item() + 576
 
     @staticmethod
@@ -437,7 +438,10 @@ class TransparentMolmo(TransparentLlm):
 
     def image_token_pos(self, batch_i: int) -> (int, int):
         input_ids = self.last_run_inputs['input_ids']
-        img_begin = (input_ids[batch_i] == self.image_start_token_id).nonzero().min()
+        img_begin = (input_ids[batch_i] == self.image_start_token_id).nonzero()
+        if img_begin.numel() == 0:
+            return -1, -1
+        img_begin = img_begin.min()
         img_end = (input_ids[batch_i] == self.image_end_token_id).nonzero().max()
         return img_begin.item(), img_end.item()
 

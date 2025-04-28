@@ -4,7 +4,7 @@ import torch
 from tqdm.auto import tqdm
 import wandb
 
-from datasets.base import BaseDataset, EvalWrapper
+from data.base import BaseDataset, EvalWrapper
 
 
 def eval_model(model, eval_wrapper: EvalWrapper, dataloader, show_tqdm=False):

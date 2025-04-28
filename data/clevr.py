@@ -7,7 +7,7 @@ import torch
 from transformers import GenerationConfig
 import wandb
 
-from datasets.base import BaseDataset, EvalWrapper
+from data.base import BaseDataset, EvalWrapper
 from models.wrappers import GenerativeWrapper
 from utils.eval import EvaluationResult
 

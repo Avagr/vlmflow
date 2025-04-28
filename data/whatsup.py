@@ -9,7 +9,7 @@ from PIL import Image
 import torch
 import wandb
 
-from datasets.base import BaseDataset
+from data.base import BaseDataset
 from models.wrappers import GenerativeWrapper
 from utils.eval import EvaluationResult
 
@@ -21,7 +21,7 @@ class WhatsUp(BaseDataset):
         self.root_dir = root_dir
         self.permute_options = permute_options
         with open(json_path, 'r') as f:
-            self.items = json.load(f) 
+            self.items = json.load(f)
         if self.permute_options:
             self.permutations = [torch.randperm(4) for _ in self.items]
 

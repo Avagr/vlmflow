@@ -1801,7 +1801,7 @@ class Molmo(nn.Module):
         input_ids: torch.LongTensor,
         input_embeddings: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        attention_bias: Optional[torch.Tensor] = None,
+        attention_biases: Optional[list[torch.Tensor]] = None,
         response_mask: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         image_masks: Optional[torch.Tensor] = None,
@@ -1826,7 +1826,7 @@ class Molmo(nn.Module):
 
             This has the same meaning as the `attention_mask` in HuggingFace's `transformers`
             library.
-        :param attention_bias: A tensor of shape `(batch_size, 1, seq_len, seq_len)`,
+        :param attention_biases: A tensor of shape `(batch_size, 1, seq_len, seq_len)`,
             `(1, 1, seq_len, seq_len)`, or `(seq_len, seq_len)`. This is used
             to introduce causal or other biases.
 
@@ -1939,18 +1939,18 @@ class Molmo(nn.Module):
 
         # Merge attention mask with attention bias.
         if (
-            attention_bias is not None
+            attention_biases is not None
             or attention_mask is not None
             # NOTE (epwalsh): we need to initialize the attn bias in order for attn to work properly
             # with key+value cache. Otherwise `F.scaled_dot_product_attention()` doesn't seem to compute
             # scores correctly.
             or past_key_values is not None
         ):
-            if attention_bias is None:
-                attention_bias = get_causal_attention_bias(self.__cache, past_length + seq_len, x.device)
-            elif attention_bias.dtype in (torch.int8, torch.bool):
-                attention_bias = attention_bias.to(dtype=torch.float)
-                attention_bias.masked_fill_(attention_bias == 0.0, torch.finfo(attention_bias.dtype).min)
+            if attention_biases is None:
+                attention_biases = [get_causal_attention_bias(self.__cache, past_length + seq_len, x.device) for _ in range(self.config.n_layers)]
+            # elif attention_biases[0].dtype in (torch.int8, torch.bool):
+            #     attention_bias = attention_bias.to(dtype=torch.float)
+            #     attention_bias.masked_fill_(attention_bias == 0.0, torch.finfo(attention_bias.dtype).min)
 
             # Transform to the right shape and data type.
             mask_len = seq_len
@@ -1958,24 +1958,26 @@ class Molmo(nn.Module):
                 mask_len = attention_mask.shape[-1]
             elif past_key_values is not None:
                 mask_len = past_key_values[0][0].shape[-2] + seq_len
-            attention_bias = attention_bias[:, :, :mask_len, :mask_len].to(dtype=torch.float)
+            for i in range(len(attention_biases)):
+                attention_biases[i] = attention_biases[i][:, :, :mask_len, :mask_len].to(dtype=torch.float)
 
             # Add in the masking bias.
             if attention_mask is not None:
-                attention_bias = attention_bias + attention_mask
+                attention_biases = [attention_bias + attention_mask for attention_bias in attention_biases]
                 # Might get -infs after adding attention mask, since dtype.min + dtype.min = -inf.
                 # `F.scaled_dot_product_attention()` doesn't handle -inf like you'd expect, instead
                 # it can produce NaNs.
-                ensure_finite_(attention_bias, check_neg_inf=True, check_pos_inf=False)
+                for attention_bias in attention_biases:
+                    ensure_finite_(attention_bias, check_neg_inf=True, check_pos_inf=False)
 
         attn_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = [] if use_cache else None
-
+        assert len(attention_biases) == len(self.transformer.blocks)
         # decoder layers
         all_hidden_states = []
         all_attentions = []
         # Apply blocks one-by-one.
         if self.config.block_group_size == 1:
-            for block_idx, block in enumerate(self.transformer.blocks):
+            for block_idx, (block, attention_bias) in enumerate(zip(self.transformer.blocks, attention_biases)):
                 if output_hidden_states:
                     # add hidden states
                     all_hidden_states.append(x)
@@ -2105,7 +2107,7 @@ class MolmoForCausalLM(PreTrainedModel):
         input_ids: torch.LongTensor = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        attention_bias: Optional[torch.Tensor] = None,
+        attention_biases: Optional[list[torch.Tensor]] = None,
         response_mask: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         image_masks: Optional[torch.Tensor] = None,
@@ -2138,7 +2140,7 @@ class MolmoForCausalLM(PreTrainedModel):
             input_ids=input_ids,
             input_embeddings=inputs_embeds,
             attention_mask=attention_mask,
-            attention_bias=attention_bias,
+            attention_biases=attention_biases,
             response_mask=response_mask,
             images=images,
             image_masks=image_masks,

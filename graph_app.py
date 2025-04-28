@@ -1,4 +1,4 @@
-import json
+from pathlib import Path
 
 from PIL import Image
 from graph_tool import Graph, PropertyMap  # noqa
@@ -16,7 +16,6 @@ if __name__ == "__main__":
     #
     # streamlit.watcher._POLLING_PERIOD_SECS = 0.01  # Probably very bad but anything slower and it takes ages to update
 
-
     @st.cache_resource(hash_funcs={list[Graph]: id, Graph: id})
     def min_block(graphs: list[Graph], nested: bool = False):
         if nested:
@@ -24,7 +23,6 @@ if __name__ == "__main__":
         return [
             gt.minimize_blockmodel_dl(g, state=gt.ModularityState).get_blocks()
             for g in graphs]
-
 
 
     margins_css = """
@@ -81,7 +79,6 @@ if __name__ == "__main__":
     simple_graphs, full_graphs = read_graphs(f"{base_dir}/{run_dir}", table_index, len(node_layers[table_index]))
     (txt_centrality, img_centrality, total_centrality, intersection_centrality, txt_difference,
      img_difference) = process_centrality(simple_graphs, adaptive_normalization=True)
-    img_beg, img_end = table_row.img_begin, table_row.img_end
 
     # --- Custom Thresholding ---
 
@@ -91,6 +88,7 @@ if __name__ == "__main__":
     #
     # @st.cache_resource()
     # def threshold_graph(t, row_idx, img_begin, img_end):
+    #     img_beg, img_end = table_row.img_begin, table_row.img_end
     #     attn, attn_res, ffn, ffn_res = load_unprocessed_graph(row_idx)
     #     return build_graph_from_contributions(
     #         attn=attn, attn_res=attn_res, ffn=ffn, ffn_res=ffn_res,
@@ -98,10 +96,10 @@ if __name__ == "__main__":
     #     )
     #
     #
-    # selected_threshold = st.slider(min_value=0.005, max_value=0.040, value=0.01, step=0.001, label="Threshold", format="%.4f")
-    # res = threshold_graph(selected_threshold, table_row.idx, img_beg, img_end)
-    # simple_graphs = [res[1]]
-    # full_graphs = [res[0]]
+    # selected_threshold = st.slider(min_value=0.005, max_value=0.040, value=0.01, step=0.001, label="Threshold", format="%.3f")
+    # fg, sg, _ = threshold_graph(selected_threshold, table_row.idx, table_row.img_begin, table_row.img_end)
+    # simple_graphs = [sg]
+    # full_graphs = [fg]
 
     # ----------------------
 
@@ -114,10 +112,10 @@ if __name__ == "__main__":
 
     match st.selectbox("Visualize metric",
                        ["Nothing", "Test", "Modality Ratio", "Text Centrality", "Image Centrality",
-                        "Closeness Centrality", "Distance Closeness Centrality", "Closeness",
+                        "Closeness Centrality", "Token Closeness Centrality", "Closeness",
                         "Centrality Sum", "Centrality Intersection", "Text Centrality Difference",
                         "Image Centrality Difference", "SBM Clustering", "K-core decomposition",
-                        "Nested SBM Clustering"], index=5):
+                        "Nested SBM Clustering"], index=2):
         case "Test":
             katz = [gt.katz(graph, alpha=0.9, norm=True).a for graph in simple_graphs]
             node_style_map = create_node_style_map(simple_graphs, katz, "value")
@@ -128,8 +126,8 @@ if __name__ == "__main__":
             closeness_centrality = get_closeness_centrality(simple_graphs)
             node_style_map = create_node_style_map(simple_graphs, closeness_centrality, "value")
 
-        case "Distance Closeness Centrality":
-            distance_closeness_centrality = get_distance_closeness_centrality(simple_graphs)
+        case "Token Closeness Centrality":
+            distance_closeness_centrality = get_token_closeness_centrality(simple_graphs)
             node_style_map = create_node_style_map(simple_graphs, distance_closeness_centrality, "value")
 
         case "Closeness":
@@ -168,7 +166,6 @@ if __name__ == "__main__":
         case _:
             node_style_map = None
 
-
     with st.container():
         graph_output = contribution_graph(
             simple_graphs[0].gp.num_layers,
@@ -180,8 +177,6 @@ if __name__ == "__main__":
 
         if graph_output is not None:
             st.session_state.current_token = graph_output
-
-
 
     # heatmap = np.zeros((24, 24))
     # graph_idx = st.session_state.current_token - num_before_graphs

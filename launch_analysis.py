@@ -122,7 +122,7 @@ def run(cfg: DictConfig):
                     graph_metrics_results[lab][idx] = []
 
                 results = list(
-                    executor.map(
+                    map(
                         metric,
                         simple_graphs
                     )
